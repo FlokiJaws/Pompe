@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PompeMoi">
+<meta name="theme-color" content="#06060f">
+<title>PompeMoi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #06060f;
+  --c1:       #0c0c1a;
+  --c2:       #111120;
+  --c3:       #191928;
+  --line:     rgba(255,255,255,.06);
+  --line2:    rgba(255,255,255,.1);
+  --fuel:     #f59e0b;
+  --fuel-lo:  rgba(245,158,11,.08);
+  --fuel-gl:  rgba(245,158,11,.28);
+  --gold:     #fbbf24;
+  --emerald:  #10b981;
+  --rose:     #f43f5e;
+  --ink:      #eeeeff;
+  --ink2:     #7878a0;
+  --ink3:     #3d3d5c;
+  --mono:     'JetBrains Mono', monospace;
+  --ui:       'Outfit', sans-serif;
+  --r:        18px;
+  --r-sm:     11px;
+  --st:       env(safe-area-inset-top,    0px);
+  --sb:       env(safe-area-inset-bottom, 0px);
+  --sl:       env(safe-area-inset-left,   0px);
+  --sr:       env(safe-area-inset-right,  0px);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box; margin: 0; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+html { height: 100%; }
+body {
+  font-family: var(--ui);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  position: fixed; inset: 0;
+  overflow: hidden;
+}
+#app {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+}
+
+/* ── HEADER ─────────────────────────────── */
+#hdr {
+  flex-shrink: 0;
+  padding: calc(var(--st) + 16px) calc(var(--sr) + 18px) 14px calc(var(--sl) + 18px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo {
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  line-height: 1;
+}
+.logo-pompe { color: var(--fuel); }
+.logo-moi   { color: var(--ink); }
+
+.avatar-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--c2);
+  border: 1px solid var(--line2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  cursor: pointer;
+  position: relative;
+  transition: transform .12s;
+}
+.avatar-btn:active { transform: scale(.9); }
+.dot-badge {
+  position: absolute; top: 1px; right: 1px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--fuel);
+  border: 2px solid var(--bg);
+  display: none;
+}
+.dot-badge.on { display: block; }
+
+/* ── SCROLL ─────────────────────────────── */
+#scr {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 0 calc(var(--sl) + 14px) 6px calc(var(--sr) + 14px);
+}
+
+/* ── FUEL PILLS ─────────────────────────── */
+.pills {
+  display: flex; gap: 7px;
+  overflow-x: auto; scrollbar-width: none;
+  padding-bottom: 2px; margin-bottom: 12px;
+}
+.pills::-webkit-scrollbar { display: none; }
+.pill {
+  flex-shrink: 0;
+  height: 36px; padding: 0 15px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  background: transparent;
+  color: var(--ink2);
+  font-family: var(--ui);
+  font-size: .8rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: all .14s;
+}
+.pill:active { opacity: .6; }
+.pill.on {
+  background: var(--fuel);
+  border-color: var(--fuel);
+  color: #000;
+  box-shadow: 0 0 18px var(--fuel-gl);
+}
+
+/* ── RADIUS ─────────────────────────────── */
+.ctrl-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--c1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.ctrl-lbl {
+  font-size: .75rem; color: var(--ink2);
+  white-space: nowrap;
+  display: flex; align-items: baseline; gap: 4px;
+}
+.ctrl-lbl b {
+  font-family: var(--mono);
+  font-size: .95rem; font-weight: 500;
+  color: var(--fuel);
+}
+input[type=range] {
+  flex: 1; -webkit-appearance: none;
+  height: 3px; border-radius: 2px;
+  background: var(--c3); outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--fuel);
+  box-shadow: 0 0 10px var(--fuel-gl);
+  cursor: pointer;
+}
+
+/* ── CAR CHIP ───────────────────────────── */
+#carChip {
+  display: none;
+  align-items: center; gap: 8px;
+  background: var(--fuel-lo);
+  border: 1px solid rgba(245,158,11,.18);
+  border-radius: var(--r-sm);
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background .12s;
+}
+#carChip:active { background: rgba(245,158,11,.14); }
+#carChip.on { display: flex; }
+.chip-ico { font-size: .9rem; }
+.chip-model {
+  font-size: .82rem; font-weight: 700;
+  color: var(--ink); flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chip-specs {
+  font-size: .75rem; color: var(--fuel);
+  font-family: var(--mono); font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── SORT ───────────────────────────────── */
+.seg {
+  display: flex;
+  background: var(--c1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px; gap: 3px;
+  margin-bottom: 14px;
+}
+.seg-btn {
+  flex: 1; height: 34px;
+  border: none; border-radius: 8px;
+  background: transparent;
+  color: var(--ink2);
+  font-family: var(--ui);
+  font-size: .78rem; font-weight: 700;
+  cursor: pointer; letter-spacing: .01em;
+  transition: all .16s;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.seg-btn.on {
+  background: var(--c3);
+  color: var(--ink);
+  box-shadow: 0 1px 6px rgba(0,0,0,.35);
+}
+.seg-btn:active { opacity: .7; }
+
+/* ── STATUS BAR ─────────────────────────── */
+#statusBar {
+  display: none;
+  align-items: center; justify-content: space-between;
+  padding: 0 2px 10px;
+  font-size: .7rem; color: var(--ink3);
+}
+#statusBar.on { display: flex; }
+.live {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--ink2);
+}
+.live::before {
+  content: '';
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--emerald);
+  animation: blink 2.8s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.2} }
+.timestamp {
+  font-family: var(--mono); font-size: .68rem;
+  background: var(--c1); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 9px;
+  color: var(--ink2);
+}
+
+/* ── SUMMARY ────────────────────────────── */
+#sumBox {
+  display: none;
+  background: var(--c1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+#sumBox.on { display: block; }
+.sum-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 8px;
+}
+.sum-item { }
+.sum-key {
+  font-size: .65rem; font-weight: 600;
+  color: var(--ink3);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 3px;
+}
+.sum-val {
+  font-family: var(--mono);
+  font-size: .92rem; font-weight: 500;
+  color: var(--ink2);
+}
+.sum-val.hi { color: var(--fuel); }
+.sum-val.lo { color: var(--emerald); }
+.sum-div {
+  grid-column: 1 / -1;
+  height: 1px; background: var(--line);
+}
+
+/* ── CARDS ──────────────────────────────── */
+#list { display: flex; flex-direction: column; gap: 8px; }
+
+.card {
+  background: var(--c1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  animation: up .28s cubic-bezier(.22,.68,0,1.1) both;
+}
+.card:nth-child(1){animation-delay:.04s}.card:nth-child(2){animation-delay:.08s}
+.card:nth-child(3){animation-delay:.11s}.card:nth-child(4){animation-delay:.14s}
+.card:nth-child(5){animation-delay:.17s}.card:nth-child(6){animation-delay:.2s}
+.card:nth-child(7){animation-delay:.22s}.card:nth-child(8){animation-delay:.24s}
+@keyframes up {
+  from { opacity:0; transform:translateY(12px) }
+  to   { opacity:1; transform:translateY(0) }
+}
+
+.card.top {
+  border-color: rgba(245,158,11,.22);
+  background: linear-gradient(145deg, var(--c1) 50%, rgba(245,158,11,.05));
+}
+
+/* ── CARD MAIN ──────────────────────────── */
+.card-main {
+  padding: 14px 14px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rk {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: .75rem; font-weight: 600;
+  color: var(--ink3); flex-shrink: 0;
+}
+.card.top .rk { border-color: var(--fuel); color: var(--fuel); }
+
+.card-body { flex: 1; min-width: 0; }
+.card-name {
+  font-size: .9rem; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.card-addr {
+  font-size: .7rem; color: var(--ink2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.card-price { text-align: right; flex-shrink: 0; }
+.p-main {
+  font-family: var(--mono);
+  font-size: 1.6rem; font-weight: 600; line-height: 1;
+  color: var(--fuel);
+}
+.card.top .p-main { color: var(--gold); }
+.p-unit { font-size: .58rem; color: var(--ink3); margin-top: 1px; }
+
+/* ── CARD FOOTER ────────────────────────── */
+.card-foot {
+  padding: 0 14px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag {
+  font-size: .64rem; font-weight: 600;
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--line2); color: var(--ink2);
+}
+.tag.g { border-color: rgba(16,185,129,.3); color: var(--emerald); }
+.tag.r { border-color: rgba(244,63,94,.3);  color: var(--rose); }
+.tag.a { border-color: rgba(245,158,11,.3); color: var(--fuel); }
+.tag.x {
+  border-color: rgba(255,255,255,.08);
+  color: var(--ink3);
+  background: rgba(255,255,255,.03);
+  letter-spacing: .02em;
+}
+
+/* Rupture : juste le tag, pas de dim */
+
+/* ── PLEIN ROW ──────────────────────────── */
+.plein-strip {
+  margin: 0 10px 10px;
+  background: var(--c2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.plein-lbl {
+  font-size: .68rem; color: var(--ink2); font-weight: 500;
+  display: flex; align-items: center; gap: 5px;
+}
+.plein-lbl::before { content: '⛽'; font-size: .75rem; }
+.plein-amt {
+  font-family: var(--mono);
+  font-size: 1.25rem; font-weight: 600;
+  color: var(--ink);
+}
+.card.top .plein-amt { color: var(--gold); }
+.plein-eur { font-size: .65rem; color: var(--ink2); margin-left: 2px; }
+
+/* ── NAV BTN ────────────────────────────── */
+.nav-row {
+  padding: 0 10px 10px;
+}
+.nav-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; height: 40px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid var(--line2);
+  color: var(--ink2);
+  font-family: var(--ui);
+  font-size: .78rem; font-weight: 600;
+  text-decoration: none;
+  transition: background .12s;
+}
+.nav-btn:active { background: var(--c3); }
+
+/* ── SKELETON ───────────────────────────── */
+.skel {
+  background: var(--c1);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  height: 98px;
+  overflow: hidden; position: relative;
+}
+.skel::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.03), transparent);
+  animation: sh 1.5s infinite;
+}
+@keyframes sh { from{transform:translateX(-100%)}to{transform:translateX(100%)} }
+
+/* ── EMPTY / ERR ────────────────────────── */
+.void {
+  padding: 64px 20px; text-align: center; color: var(--ink2);
+}
+.void .e { font-size: 2.8rem; margin-bottom: 14px; display: block; }
+.void h3  { font-size: .95rem; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.void p   { font-size: .78rem; line-height: 1.7; color: var(--ink2); }
+
+/* ── BOTTOM BAR ─────────────────────────── */
+#bot {
+  flex-shrink: 0;
+  padding: 10px calc(var(--sr) + 14px) calc(var(--sb) + 16px) calc(var(--sl) + 14px);
+  background: linear-gradient(to top, var(--bg) 65%, transparent);
+}
+.cta {
+  width: 100%; height: 52px;
+  border: none; border-radius: var(--r);
+  background: linear-gradient(135deg, #92400e 0%, var(--fuel) 55%, var(--gold) 100%);
+  color: #000;
+  font-family: var(--ui);
+  font-size: .98rem; font-weight: 800;
+  letter-spacing: .01em;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 6px 28px var(--fuel-gl);
+  transition: transform .12s, opacity .12s;
+}
+.cta:disabled { opacity: .38; }
+.cta:not(:disabled):active { transform: scale(.97); }
+
+/* ── SHEET ──────────────────────────────── */
+#ovl {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity .28s;
+}
+#ovl.on { opacity: 1; pointer-events: all; }
+#sheet {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--c1);
+  border-radius: 22px 22px 0 0;
+  border-top: 1px solid var(--line2);
+  z-index: 101;
+  padding: 0 20px calc(var(--sb) + 24px);
+  transform: translateY(100%);
+  transition: transform .32s cubic-bezier(.32,.72,0,1);
+  max-height: 90dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#sheet.on { transform: translateY(0); }
+.handle {
+  width: 34px; height: 4px;
+  background: var(--line2);
+  border-radius: 2px;
+  margin: 11px auto 20px;
+}
+.sheet-ttl {
+  font-size: 1.2rem; font-weight: 800;
+  margin-bottom: 4px;
+}
+.sheet-sub {
+  font-size: .76rem; color: var(--ink2);
+  line-height: 1.5; margin-bottom: 22px;
+}
+.fg { margin-bottom: 16px; }
+.flbl {
+  font-size: .68rem; font-weight: 700;
+  color: var(--ink3);
+  text-transform: uppercase; letter-spacing: .09em;
+  margin-bottom: 6px; display: block;
+}
+.finput {
+  width: 100%; height: 50px;
+  background: var(--c2);
+  border: 1.5px solid var(--line2);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 1rem; font-weight: 500;
+  padding: 0 14px;
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color .14s;
+}
+.finput:focus { border-color: var(--fuel); }
+.finput::placeholder { color: var(--ink3); }
+.frow { display: flex; gap: 10px; }
+.frow .fg { flex: 1; }
+.save-btn {
+  width: 100%; height: 50px;
+  border: none; border-radius: var(--r-sm);
+  background: linear-gradient(135deg, #92400e, var(--fuel));
+  color: #000;
+  font-family: var(--ui);
+  font-size: .95rem; font-weight: 800;
+  cursor: pointer; margin-top: 6px;
+  box-shadow: 0 4px 20px var(--fuel-gl);
+  transition: transform .12s;
+}
+.save-btn:active { transform: scale(.97); }
+.reset-lnk {
+  display: block; text-align: center;
+  font-size: .73rem; color: var(--ink3);
+  padding: 12px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="hdr">
+    <div class="logo">
+      <span class="logo-pompe">Pompe</span><span class="logo-moi">Moi</span>
+    </div>
+    <button class="avatar-btn" onclick="openSheet()" aria-label="Mon véhicule">
+      🚗<span class="dot-badge" id="dbadge"></span>
+    </button>
+  </div>
+
+  <div id="scr">
+
+    <div class="pills" id="pills">
+      <button class="pill on" data-fuel="gazole">🛢 Gazole</button>
+      <button class="pill" data-fuel="e10">E10</button>
+      <button class="pill" data-fuel="sp95">SP95</button>
+      <button class="pill" data-fuel="sp98">SP98</button>
+      <button class="pill" data-fuel="e85">E85</button>
+      <button class="pill" data-fuel="gplc">GPL</button>
+    </div>
+
+    <div class="ctrl-row">
+      <div class="ctrl-lbl">Rayon<b id="rv">10</b>km</div>
+      <input type="range" id="rs" min="2" max="40" value="10" step="1">
+    </div>
+
+    <div id="carChip" onclick="openSheet()">
+      <span class="chip-ico">🚗</span>
+      <span class="chip-model" id="chipModel"></span>
+      <span class="chip-specs" id="chipSpecs"></span>
+    </div>
+
+    <div class="seg">
+      <button class="seg-btn on" data-sort="litre" onclick="setSort('litre')">€ / litre</button>
+      <button class="seg-btn"    data-sort="plein" onclick="setSort('plein')">Plein total</button>
+    </div>
+
+    <div id="statusBar">
+      <span class="live" id="stLbl"></span>
+      <span class="timestamp" id="stTime"></span>
+    </div>
+
+    <div id="sumBox"></div>
+    <div id="list"></div>
+
+  </div>
+
+  <div id="bot">
+    <button class="cta" id="btn" onclick="search()">
+      ⛽ Trouver les prix autour de moi
+    </button>
+  </div>
+
+</div>
+
+<div id="ovl" onclick="closeSheet()"></div>
+<div id="sheet">
+  <div class="handle"></div>
+  <div class="sheet-ttl">Mon véhicule</div>
+  <div class="sheet-sub">Pour calculer le plein + trajet aller-retour.</div>
+
+  <div class="fg">
+    <label class="flbl" for="fMod">Modèle</label>
+    <input class="finput" id="fMod" type="text" placeholder="Clio, 308, Golf…"
+      autocomplete="off" autocorrect="off" autocapitalize="words">
+  </div>
+
+  <div class="frow">
+    <div class="fg">
+      <label class="flbl" for="fTank">Réservoir (L)</label>
+      <input class="finput" id="fTank" type="number" placeholder="50"
+        min="10" max="150" inputmode="decimal">
+    </div>
+    <div class="fg">
+      <label class="flbl" for="fConso">Conso (L/100)</label>
+      <input class="finput" id="fConso" type="number" placeholder="6.5"
+        min="1" max="30" step="0.1" inputmode="decimal">
+    </div>
+  </div>
+
+  <button class="save-btn" onclick="saveProfile()">Enregistrer</button>
+  <span class="reset-lnk" onclick="resetProfile()">Effacer le profil</span>
+</div>
+
+<script>
+/* ── CONSTANTES ───────────────────────── */
+const FUELS = {
+  gazole:{ p:'gazole_prix', m:'gazole_maj', r:'gazole_rupture', l:'Gazole' },
+  e10:   { p:'e10_prix',    m:'e10_maj',    r:'e10_rupture',    l:'E10'    },
+  sp95:  { p:'sp95_prix',   m:'sp95_maj',   r:'sp95_rupture',   l:'SP95'   },
+  sp98:  { p:'sp98_prix',   m:'sp98_maj',   r:'sp98_rupture',   l:'SP98'   },
+  e85:   { p:'e85_prix',    m:'e85_maj',    r:'e85_rupture',    l:'E85'    },
+  gplc:  { p:'gplc_prix',   m:'gplc_maj',   r:'gplc_rupture',  l:'GPLc'   },
+};
+const K = { f:'pm_fuel', r:'pm_radius', mo:'pm_model', tk:'pm_tank', co:'pm_conso' };
+
+/* ── STATE ────────────────────────────── */
+const S = {
+  fuel:   localStorage.getItem(K.f) || 'gazole',
+  radius: +( localStorage.getItem(K.r) || 10 ),
+  sort:   'litre',
+  lat: null, lon: null,
+  raw: [],
+  car: {
+    model: localStorage.getItem(K.mo) || '',
+    tank:  +( localStorage.getItem(K.tk) ) || 0,
+    conso: +( localStorage.getItem(K.co) ) || 0,
+  }
+};
+
+/* ── INIT ─────────────────────────────── */
+(function(){
+  // pills
+  document.querySelectorAll('.pill').forEach(p => {
+    p.classList.toggle('on', p.dataset.fuel === S.fuel);
+    p.addEventListener('click', () => {
+      document.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));
+      p.classList.add('on');
+      S.fuel = p.dataset.fuel;
+      localStorage.setItem(K.f, S.fuel);
+      if (S.raw.length) render();
+    });
+  });
+  // radius
+  const rs = document.getElementById('rs');
+  rs.value = S.radius;
+  document.getElementById('rv').textContent = S.radius;
+  rs.addEventListener('input', ()=>{ S.radius=+rs.value; document.getElementById('rv').textContent=S.radius; });
+  rs.addEventListener('change', ()=>{
+    localStorage.setItem(K.r, S.radius);
+    if (S.lat!==null){ clearTimeout(rs._t); rs._t=setTimeout(search,300); }
+  });
+  updateCarUI();
+  // Lancement automatique dès l'ouverture
+  search();
+})();
+
+/* ── SORT ─────────────────────────────── */
+function setSort(v){
+  S.sort=v;
+  document.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.sort===v));
+  if (S.raw.length) render();
+}
+
+/* ── HAVERSINE ────────────────────────── */
+function hav(a,b,c,d){
+  const R=6371,r=x=>x*Math.PI/180,dA=r(c-a),dB=r(d-b);
+  const x=Math.sin(dA/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dB/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+/* ── ENRICHISSEMENT NOMS (dataset J-7 opendatasoft) ── */
+S.names = {}; // { stationId -> "Nom / Marque" }
+
+async function enrichNames(ids){
+  if(!ids.length) return;
+  try {
+    // On envoie les IDs en batch (max 100, même limite que notre recherche)
+    const where = ids.map(id=>`identifiant_station=${id}`).join(' OR ');
+    const url =
+      'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/'+
+      'prix_des_carburants_j_7/records'+
+      `?select=identifiant_station,nom,marque&where=${encodeURIComponent(where)}&limit=100`;
+    const res = await fetch(url,{headers:{Accept:'application/json'}});
+    if(!res.ok) return;
+    const json = await res.json();
+    (json.results||[]).forEach(r=>{
+      const id = String(r.identifiant_station||'');
+      // Préfère le nom propre, sinon la marque
+      const label = r.nom||r.marque||null;
+      if(id && label) S.names[id] = label.trim();
+    });
+  } catch(_){}
+}
+
+/* ── SEARCH ───────────────────────────── */
+async function search(){
+  const btn=document.getElementById('btn');
+  btn.disabled=true; btn.textContent='📍 Localisation…';
+  skels();
+  try {
+    const pos=await geo();
+    S.lat=pos.coords.latitude; S.lon=pos.coords.longitude;
+    btn.textContent='🔄 Chargement…';
+    const url=
+      'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/'+
+      'prix-des-carburants-en-france-flux-instantane-v2/records'+
+      `?where=distance(geom,geom'POINT(${S.lon}%20${S.lat})',${S.radius}km)`+
+      '&limit=100&timezone=Europe%2FParis&select=*';
+    const res=await fetch(url,{headers:{Accept:'application/json'}});
+    if(!res.ok) throw new Error(`API ${res.status}`);
+    S.raw=(await res.json()).results||[];
+
+    // Enrichissement noms en parallèle (n'attend pas pour afficher)
+    const ids = S.raw.map(r=>String(r.id||'')).filter(Boolean);
+    enrichNames(ids).then(()=>{ if(S.raw.length) render(); });
+
+    const bar=document.getElementById('statusBar');
+    bar.classList.add('on');
+    document.getElementById('stTime').textContent=
+      new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    render();
+  } catch(e){ showErr(e); }
+  finally {
+    btn.disabled=false;
+    btn.innerHTML='⛽ Actualiser';
+  }
+}
+
+/* ── RENDER ───────────────────────────── */
+function render(){
+  const f=FUELS[S.fuel], car=S.car;
+  const hasCar=car.tank>0&&car.conso>0;
+
+  const stations=S.raw.map(r=>{
+    const prix=parseFloat(r[f.p]); if(!prix||isNaN(prix)) return null;
+    let lat=null,lon=null;
+    if(r.geom){lat=r.geom.lat;lon=r.geom.lon;}
+    else if(r.latitude){lat=+r.latitude;lon=+r.longitude;}
+    const dist=(lat!==null&&S.lat!==null)?hav(S.lat,S.lon,+lat,+lon):null;
+    const prixPlein=hasCar&&dist!==null
+      ? car.tank*prix + (2*dist/100)*car.conso*prix
+      : null;
+    let age=null, stale=false;
+    try{ const h=Math.round((Date.now()-new Date(r[f.m]))/3600000);
+      age=h<1?'< 1h':h<24?`${h}h`:`${Math.round(h/24)}j`;
+      stale=h>48; }catch{}
+    const rupture = !!(r[f.r]);
+    return{...r,_p:prix,_d:dist,_lat:lat,_lon:lon,_plein:prixPlein,_age:age,_stale:stale,_rupture:rupture};
+  }).filter(Boolean);
+
+  const sorted=[...stations].sort((a,b)=>{
+    if(S.sort==='plein'&&hasCar&&a._plein!==null&&b._plein!==null)
+      return a._plein-b._plein;
+    return a._p-b._p;
+  });
+
+  document.getElementById('stLbl').textContent=
+    `${sorted.length} station${sorted.length!==1?'s':''}  ·  ${f.l}`;
+
+  const sb=document.getElementById('sumBox'), list=document.getElementById('list');
+
+  if(!sorted.length){
+    sb.classList.remove('on');
+    list.innerHTML=`<div class="void"><span class="e">🏜️</span><h3>Aucun résultat</h3><p>${S.raw.length} station${S.raw.length!==1?'s':''} dans ce rayon mais aucune ne vend du ${f.l}.<br>Changez de carburant ou augmentez le rayon.</p></div>`;
+    return;
+  }
+
+  const pp=sorted.map(s=>s._p);
+  const mn=Math.min(...pp),mx=Math.max(...pp),avg=pp.reduce((a,b)=>a+b,0)/pp.length;
+
+  sb.classList.add('on');
+  let sh=`<div class="sum-grid">
+    <div class="sum-item"><div class="sum-key">Moins cher</div><div class="sum-val lo">${mn.toFixed(3)} €/L</div></div>
+    <div class="sum-item"><div class="sum-key">Plus cher</div><div class="sum-val hi">${mx.toFixed(3)} €/L</div></div>
+    <div class="sum-item"><div class="sum-key">Moyenne</div><div class="sum-val">${avg.toFixed(3)} €/L</div></div>
+    <div class="sum-item"><div class="sum-key">Écart max</div><div class="sum-val">${(mx-mn).toFixed(3)} €/L</div></div>`;
+  if(hasCar&&sorted[0]._plein!==null){
+    sh+=`<div class="sum-div"></div>
+    <div class="sum-item" style="grid-column:1/-1">
+      <div class="sum-key">Meilleur plein estimé</div>
+      <div class="sum-val lo" style="font-size:1.1rem">${sorted[0]._plein.toFixed(2)} €</div>
+    </div>`;
+  }
+  sh+=`</div>`;
+  sb.innerHTML=sh;
+
+  list.innerHTML=sorted.map((s,i)=>card(s,i,mn,hasCar)).join('');
+}
+
+function card(s,i,mn,hasCar){
+  const top=i===0;
+  // Nom enrichi depuis le dataset J-7, sinon fallback sur les champs directs
+  const stationId = String(s.id||'');
+  const enriched = S.names[stationId]||null;
+  const rawName = enriched||s.nom||s.ensigne||s.brand||s.marque||null;
+  const name = rawName
+    ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
+    : s.adresse||'Station';
+  const addr=[s.adresse,s.ville].filter(Boolean).join(', ');
+  const maps=(s._lat&&s._lon)
+    ?`https://www.google.com/maps/dir/?api=1&destination=${s._lat},${s._lon}&travelmode=driving`
+    :null;
+  const d=s._d!==null?s._d.toFixed(1):null;
+  const delta=s._p-mn, pct=(mn>0?delta/mn*100:0);
+  const dtag=s._rupture
+    ? `<span class="tag x">Rupture de stock</span>`
+    : delta<0.001
+      ?`<span class="tag g">✓ Moins cher</span>`
+      :pct<2?`<span class="tag a">+${pct.toFixed(1)}%</span>`
+            :`<span class="tag r">+${pct.toFixed(1)}%</span>`;
+
+  let plein='';
+  if(hasCar&&s._plein!==null&&!s._rupture)
+    plein=`<div class="plein-strip">
+      <span class="plein-lbl">Plein estimé</span>
+      <div><span class="plein-amt">${s._plein.toFixed(2)}</span><span class="plein-eur">€</span></div>
+    </div>`;
+
+  let nav='';
+  if(maps)
+    nav=`<div class="nav-row"><a class="nav-btn" href="${maps}" target="_blank" rel="noopener">🗺 Itinéraire</a></div>`;
+
+  return `<div class="card${top&&!s._rupture?' top':''}${s._rupture?' out':''}">
+    <div class="card-main">
+      <div class="rk">${i+1}</div>
+      <div class="card-body">
+        <div class="card-name">${esc(name)}</div>
+        <div class="card-addr">${esc(addr)}</div>
+      </div>
+      <div class="card-price">
+        <div class="p-main">${s._p.toFixed(3)}</div>
+        <div class="p-unit">€ / litre</div>
+      </div>
+    </div>
+    <div class="card-foot">
+      <div class="tags">
+        ${d?`<span class="tag">📍 ${d} km</span>`:''}
+        ${s._age?`<span class="tag${s._stale?' r':''}" title="Prix déclaré il y a ${s._age}">Prix : ${s._age}</span>`:''}
+        ${dtag}
+      </div>
+    </div>
+    ${plein}${nav}
+  </div>`;
+}
+
+/* ── PROFILE ──────────────────────────── */
+function openSheet(){
+  const c=S.car;
+  document.getElementById('fMod').value=c.model||'';
+  document.getElementById('fTank').value=c.tank||'';
+  document.getElementById('fConso').value=c.conso||'';
+  document.getElementById('ovl').classList.add('on');
+  document.getElementById('sheet').classList.add('on');
+  document.getElementById('scr').style.overflow='hidden';
+}
+function closeSheet(){
+  document.getElementById('ovl').classList.remove('on');
+  document.getElementById('sheet').classList.remove('on');
+  document.getElementById('scr').style.overflow='';
+}
+function saveProfile(){
+  const mo=document.getElementById('fMod').value.trim();
+  const tk=parseFloat(document.getElementById('fTank').value)||0;
+  const co=parseFloat(document.getElementById('fConso').value)||0;
+  S.car={model:mo,tank:tk,conso:co};
+  localStorage.setItem(K.mo,mo);
+  localStorage.setItem(K.tk,tk||'');
+  localStorage.setItem(K.co,co||'');
+  updateCarUI(); closeSheet();
+  if(S.raw.length) render();
+}
+function resetProfile(){
+  S.car={model:'',tank:0,conso:0};
+  [K.mo,K.tk,K.co].forEach(k=>localStorage.removeItem(k));
+  updateCarUI(); closeSheet();
+  if(S.raw.length) render();
+}
+function updateCarUI(){
+  const c=S.car, has=!!(c.model||c.tank>0);
+  document.getElementById('dbadge').classList.toggle('on', has);
+  const chip=document.getElementById('carChip');
+  if(has){
+    chip.classList.add('on');
+    document.getElementById('chipModel').textContent=c.model||'Mon véhicule';
+    document.getElementById('chipSpecs').textContent=
+      [c.tank?`${c.tank}L`:'', c.conso?`${c.conso}L/100`:''].filter(Boolean).join(' · ');
+  } else {
+    chip.classList.remove('on');
+  }
+}
+
+/* ── HELPERS ──────────────────────────── */
+function geo(){
+  return new Promise((ok,fail)=>{
+    if(!navigator.geolocation) return fail(new Error('Géolocalisation non disponible.'));
+    navigator.geolocation.getCurrentPosition(ok,fail,
+      {enableHighAccuracy:true,timeout:14000,maximumAge:90000});
+  });
+}
+function skels(){
+  document.getElementById('sumBox').classList.remove('on');
+  document.getElementById('list').innerHTML=Array(6).fill('<div class="skel"></div>').join('');
+}
+function showErr(e){
+  let m=e?.message||'Erreur inconnue.';
+  if(e?.code===1)m='Géolocalisation refusée. Activez-la dans Réglages › Safari › Localisation.';
+  else if(e?.code===2)m='Position indisponible. Vérifiez votre réseau.';
+  else if(e?.code===3)m='Délai expiré. Réessayez.';
+  document.getElementById('sumBox').classList.remove('on');
+  document.getElementById('list').innerHTML=
+    `<div class="void"><span class="e">⚠️</span><h3>Erreur</h3><p>${esc(m)}</p></div>`;
+}
+function esc(s){
+  return String(s??'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.search=search; window.setSort=setSort;
+window.openSheet=openSheet; window.closeSheet=closeSheet;
+window.saveProfile=saveProfile; window.resetProfile=resetProfile;
+</script>
+</body>
+</html>
