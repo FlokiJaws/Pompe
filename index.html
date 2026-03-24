@@ -193,6 +193,7 @@ input[type=range]::-webkit-slider-thumb {
 /* ── SORT ───────────────────────────────── */
 .seg {
   display: flex;
+  flex-wrap: wrap;
   background: var(--c1);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -200,7 +201,7 @@ input[type=range]::-webkit-slider-thumb {
   margin-bottom: 14px;
 }
 .seg-btn {
-  flex: 1; height: 34px;
+  flex: 1; min-width: calc(50% - 2px); height: 34px;
   border: none; border-radius: 8px;
   background: transparent;
   color: var(--ink2);
@@ -570,8 +571,10 @@ input[type=range]::-webkit-slider-thumb {
     </div>
 
     <div class="seg">
-      <button class="seg-btn on" data-sort="litre" onclick="setSort('litre')">€ / litre</button>
-      <button class="seg-btn"    data-sort="plein" onclick="setSort('plein')">Plein total</button>
+      <button class="seg-btn on" data-sort="litre"  onclick="setSort('litre')">€ / litre</button>
+      <button class="seg-btn"    data-sort="plein"  onclick="setSort('plein')">Plein total</button>
+      <button class="seg-btn"    data-sort="proche" onclick="setSort('proche')">Plus proche</button>
+      <button class="seg-btn"    data-sort="cher"   onclick="setSort('cher')">Plus cher</button>
     </div>
 
     <div id="statusBar">
@@ -694,19 +697,17 @@ S.names = {}; // { stationId -> "Nom / Marque" }
 async function enrichNames(ids){
   if(!ids.length) return;
   try {
-    // On envoie les IDs en batch (max 100, même limite que notre recherche)
-    const where = ids.map(id=>`identifiant_station=${id}`).join(' OR ');
+    const where = ids.map(id=>`id="${id}"`).join(' OR ');
     const url =
       'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/'+
       'prix_des_carburants_j_7/records'+
-      `?select=identifiant_station,nom,marque&where=${encodeURIComponent(where)}&limit=100`;
+      `?select=id,brand,name&where=${encodeURIComponent(where)}&limit=100`;
     const res = await fetch(url,{headers:{Accept:'application/json'}});
     if(!res.ok) return;
     const json = await res.json();
     (json.results||[]).forEach(r=>{
-      const id = String(r.identifiant_station||'');
-      // Préfère le nom propre, sinon la marque
-      const label = r.nom||r.marque||null;
+      const id = String(r.id||'');
+      const label = r.brand||r.name||null;
       if(id && label) S.names[id] = label.trim();
     });
   } catch(_){}
@@ -771,6 +772,10 @@ function render(){
   const sorted=[...stations].sort((a,b)=>{
     if(S.sort==='plein'&&hasCar&&a._plein!==null&&b._plein!==null)
       return a._plein-b._plein;
+    if(S.sort==='proche'&&a._d!==null&&b._d!==null)
+      return a._d-b._d;
+    if(S.sort==='cher')
+      return b._p-a._p;
     return a._p-b._p;
   });
 
@@ -808,13 +813,13 @@ function render(){
 }
 
 function card(s,i,mn,hasCar){
-  const top=i===0;
+  const top=i===0&&S.sort!=='cher';
   // Nom enrichi depuis le dataset J-7, sinon fallback sur les champs directs
   const stationId = String(s.id||'');
   const enriched = S.names[stationId]||null;
-  const rawName = enriched||s.nom||s.ensigne||s.brand||s.marque||null;
+  const rawName = enriched||null;
   const name = rawName
-    ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
+    ? rawName.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     : s.adresse||'Station';
   const addr=[s.adresse,s.ville].filter(Boolean).join(', ');
   const maps=(s._lat&&s._lon)
