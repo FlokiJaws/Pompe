@@ -534,6 +534,169 @@ input[type=range]::-webkit-slider-thumb {
   font-size: .73rem; color: var(--ink3);
   padding: 12px; cursor: pointer;
 }
+
+/* ── BOUTON ESPAGNE ───────────────────── */
+.cta-es {
+  width: 100%; height: 44px;
+  border: 1.5px solid rgba(255,255,255,.12);
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--ink2);
+  font-family: var(--ui);
+  font-size: .88rem; font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 8px;
+  transition: background .12s, color .12s;
+}
+.cta-es:not(:disabled):active { background: var(--c2); }
+.cta-es:disabled { opacity: .38; }
+
+/* ── FEUILLE ESPAGNE ──────────────────── */
+#spainOvl {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  opacity: 0; pointer-events: none;
+  transition: opacity .28s;
+}
+#spainOvl.on { opacity: 1; pointer-events: all; }
+#spainSheet {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--c1);
+  border-radius: 22px 22px 0 0;
+  border-top: 1px solid var(--line2);
+  z-index: 201;
+  padding: 0 0 calc(var(--sb) + 24px);
+  transform: translateY(100%);
+  transition: transform .32s cubic-bezier(.32,.72,0,1);
+  max-height: 92dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#spainSheet.on { transform: translateY(0); }
+#spainSheet .handle {
+  width: 34px; height: 4px;
+  background: var(--line2);
+  border-radius: 2px;
+  margin: 11px auto 0;
+}
+.es-header {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+.es-title {
+  font-size: 1.15rem; font-weight: 800;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px;
+}
+.es-sub {
+  font-size: .74rem; color: var(--ink2); line-height: 1.55;
+}
+.es-compare {
+  margin: 0 14px 12px;
+  background: var(--c2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+}
+.es-compare-ttl {
+  font-size: .65rem; font-weight: 700;
+  color: var(--ink3); text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 10px;
+}
+.es-compare-row {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 10px;
+}
+.es-compare-item { flex: 1; text-align: center; }
+.es-compare-flag { font-size: .7rem; color: var(--ink3); margin-bottom: 3px; }
+.es-compare-val {
+  font-family: var(--mono);
+  font-size: 1.2rem; font-weight: 600;
+}
+.es-compare-val.fr { color: var(--fuel); }
+.es-compare-val.es { color: #e52b30; }
+.es-compare-sub { font-size: .65rem; color: var(--ink3); margin-top: 2px; }
+.es-compare-sep { font-size: 1rem; color: var(--ink3); }
+.es-savings {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: .78rem; font-weight: 700;
+}
+.es-savings.win  { color: var(--emerald); }
+.es-savings.lose { color: var(--ink3); }
+.es-list {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 0 14px;
+}
+.es-card {
+  background: var(--c2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.es-card.es-top {
+  border-color: rgba(229,43,48,.25);
+  background: linear-gradient(145deg, var(--c2) 50%, rgba(229,43,48,.06));
+}
+.es-card-main {
+  padding: 12px 14px 10px;
+  display: flex; align-items: center; gap: 12px;
+}
+.es-rk {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: .75rem; font-weight: 600;
+  color: var(--ink3); flex-shrink: 0;
+}
+.es-card.es-top .es-rk { border-color: #e52b30; color: #e52b30; }
+.es-card-body { flex: 1; min-width: 0; }
+.es-card-name {
+  font-size: .88rem; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.es-card-addr {
+  font-size: .68rem; color: var(--ink2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.es-card-price { text-align: right; flex-shrink: 0; }
+.es-p-main {
+  font-family: var(--mono);
+  font-size: 1.55rem; font-weight: 600; line-height: 1;
+  color: #e52b30;
+}
+.es-p-unit { font-size: .58rem; color: var(--ink3); margin-top: 1px; }
+.es-card-foot {
+  padding: 0 14px 11px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.es-plein {
+  margin: 0 10px 10px;
+  background: rgba(229,43,48,.07);
+  border: 1px solid rgba(229,43,48,.15);
+  border-radius: 10px;
+  padding: 9px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.es-plein-lbl {
+  font-size: .68rem; color: var(--ink2); font-weight: 500;
+  display: flex; align-items: center; gap: 5px;
+}
+.es-plein-lbl::before { content: '⛽'; font-size: .75rem; }
+.es-plein-amt {
+  font-family: var(--mono);
+  font-size: 1.2rem; font-weight: 600;
+  color: var(--ink);
+}
 </style>
 </head>
 <body>
@@ -591,8 +754,17 @@ input[type=range]::-webkit-slider-thumb {
     <button class="cta" id="btn" onclick="search()">
       ⛽ Trouver les prix autour de moi
     </button>
+    <button class="cta-es" id="btnSpain" onclick="searchSpain()" style="display:none">
+      🇪🇸 Comparer avec l'Espagne
+    </button>
   </div>
 
+</div>
+
+<div id="spainOvl" onclick="closeSpainSheet()"></div>
+<div id="spainSheet">
+  <div class="handle"></div>
+  <div id="spainContent"></div>
 </div>
 
 <div id="ovl" onclick="closeSheet()"></div>
@@ -786,6 +958,7 @@ function render(){
 
   if(!sorted.length){
     sb.classList.remove('on');
+    document.getElementById('btnSpain').style.display='none';
     list.innerHTML=`<div class="void"><span class="e">🏜️</span><h3>Aucun résultat</h3><p>${S.raw.length} station${S.raw.length!==1?'s':''} dans ce rayon mais aucune ne vend du ${f.l}.<br>Changez de carburant ou augmentez le rayon.</p></div>`;
     return;
   }
@@ -810,6 +983,7 @@ function render(){
   sb.innerHTML=sh;
 
   list.innerHTML=sorted.map((s,i)=>card(s,i,mn,hasCar)).join('');
+  document.getElementById('btnSpain').style.display='';
 }
 
 function card(s,i,mn,hasCar){
@@ -924,6 +1098,7 @@ function geo(){
 }
 function skels(){
   document.getElementById('sumBox').classList.remove('on');
+  document.getElementById('btnSpain').style.display='none';
   document.getElementById('list').innerHTML=Array(6).fill('<div class="skel"></div>').join('');
 }
 function showErr(e){
@@ -941,9 +1116,197 @@ function esc(s){
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/* ── COMPARAISON ESPAGNE ──────────────── */
+const SPAIN_BORDERS = [
+  { name:'Hendaye / Irun',  lat:43.358, lon:-1.787, ccaa:'16', prov:'20' }, // Guipúzcoa
+  { name:'Dancharinea',     lat:43.266, lon:-1.557, ccaa:'15', prov:'31' }, // Navarre
+  { name:'Col du Somport',  lat:42.795, lon:-0.530, ccaa:'02', prov:'22' }, // Huesca
+  { name:'Puigcerdà',       lat:42.430, lon: 1.928, ccaa:'09', prov:'25' }, // Lleida
+  { name:'La Jonquera',     lat:42.462, lon: 2.851, ccaa:'09', prov:'17' }, // Girona
+];
+const ES_FUEL = {
+  gazole:'Precio Gasoleo A',
+  sp95:  'Precio Gasolina 95 E5',
+  sp98:  'Precio Gasolina 98 E5',
+  e10:   'Precio Gasolina 95 E10',
+  e85:   'Precio Bioetanol',
+  gplc:  'Precio GLP',
+};
+
+async function searchSpain(){
+  if(S.lat===null) return;
+  const btn=document.getElementById('btnSpain');
+  btn.disabled=true; btn.textContent='🔄 Chargement…';
+
+  const border=SPAIN_BORDERS
+    .map(b=>({...b, distUser:hav(S.lat,S.lon,b.lat,b.lon)}))
+    .sort((a,b)=>a.distUser-b.distUser)[0];
+
+  const cont=document.getElementById('spainContent');
+  cont.innerHTML='<div style="padding:48px 0;text-align:center;color:var(--ink2);font-size:.85rem">Chargement…</div>';
+  openSpainSheet();
+
+  try{
+    const url=
+      'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/'+
+      `EstacionesTerrestresFiltradas/${border.ccaa}/${border.prov}/0/0`;
+    const res=await fetch(url,{headers:{Accept:'application/json'}});
+    if(!res.ok) throw new Error(`API Espagne : ${res.status}`);
+    const json=await res.json();
+    renderSpain(border, json.ListaEESSPrecio||[]);
+  }catch(e){
+    cont.innerHTML=`<div class="void" style="padding:48px 20px"><span class="e">⚠️</span><h3>Erreur</h3><p>${esc(e.message)}</p></div>`;
+  }finally{
+    btn.disabled=false; btn.innerHTML='🇪🇸 Comparer avec l\'Espagne';
+  }
+}
+
+function renderSpain(border, rawList){
+  const f=FUELS[S.fuel], esField=ES_FUEL[S.fuel];
+  const car=S.car, hasCar=car.tank>0&&car.conso>0;
+
+  if(!esField){
+    document.getElementById('spainContent').innerHTML=
+      `<div class="es-header"><div class="es-title">🇪🇸 Espagne</div>`+
+      `<div class="es-sub">Le carburant ${esc(f.l)} n'a pas d'équivalent direct en Espagne.</div></div>`;
+    return;
+  }
+
+  const stations=rawList.map(r=>{
+    const priceStr=(r[esField]||'').replace(',','.').trim();
+    const prix=parseFloat(priceStr);
+    if(!prix||isNaN(prix)||prix<0.3) return null;
+    const lat=parseFloat((r['Latitud']||'').replace(',','.'));
+    const lon=parseFloat((r['Longitud (WGS84)']||'').replace(',','.'));
+    if(!lat||!lon||isNaN(lat)||isNaN(lon)) return null;
+    const distUser=hav(S.lat,S.lon,lat,lon);
+    const distBorder=hav(border.lat,border.lon,lat,lon);
+    const prixPlein=hasCar
+      ? car.tank*prix+(2*distUser/100)*car.conso*prix
+      : null;
+    return{
+      name:(r['Rótulo']||'Station').trim(),
+      addr:r['Dirección']||'', ville:r['Municipio']||'',
+      prix, distUser, distBorder, prixPlein, lat, lon,
+    };
+  }).filter(Boolean);
+
+  const nearBorder=stations
+    .filter(s=>s.distBorder<=40)
+    .sort((a,b)=>hasCar&&a.prixPlein!==null&&b.prixPlein!==null
+      ? a.prixPlein-b.prixPlein : a.prix-b.prix)
+    .slice(0,6);
+
+  // Meilleure station FR pour la comparaison
+  const frRaw=S.raw.map(r=>{
+    const prix=parseFloat(r[f.p]); if(!prix||isNaN(prix)) return null;
+    let lat=null,lon=null;
+    if(r.geom){lat=r.geom.lat;lon=r.geom.lon;}
+    else if(r.latitude){lat=+r.latitude;lon=+r.longitude;}
+    const dist=(lat!==null)?hav(S.lat,S.lon,+lat,+lon):null;
+    const prixPlein=hasCar&&dist!==null
+      ? car.tank*prix+(2*dist/100)*car.conso*prix : null;
+    return{prix,dist,prixPlein};
+  }).filter(Boolean);
+
+  const bestFr=frRaw.length
+    ? frRaw.reduce((b,s)=>hasCar&&s.prixPlein!==null&&b.prixPlein!==null
+        ? (s.prixPlein<b.prixPlein?s:b) : (s.prix<b.prix?s:b))
+    : null;
+  const bestEs=nearBorder.length ? nearBorder[0] : null;
+
+  let html=`<div class="es-header">
+    <div class="es-title">🇪🇸 Espagne</div>
+    <div class="es-sub">Via <strong>${esc(border.name)}</strong> · frontière à ${border.distUser.toFixed(0)} km de vous<br>
+    Stations dans un rayon de 40 km du passage frontière</div>
+  </div>`;
+
+  if(!nearBorder.length){
+    html+=`<div style="padding:30px 20px;text-align:center;color:var(--ink2);font-size:.82rem">Aucune station trovée pour le ${esc(f.l)} près de ${esc(border.name)}.</div>`;
+    document.getElementById('spainContent').innerHTML=html; return;
+  }
+
+  // Bloc comparaison
+  if(bestFr&&bestEs){
+    const useTotal=hasCar&&bestFr.prixPlein!==null&&bestEs.prixPlein!==null;
+    const vFr=useTotal?bestFr.prixPlein:bestFr.prix;
+    const vEs=useTotal?bestEs.prixPlein:bestEs.prix;
+    const diff=vFr-vEs, win=diff>0;
+    const unit=useTotal?'€ plein':'€/L';
+    const decimals=useTotal?2:3;
+    html+=`<div class="es-compare">
+      <div class="es-compare-ttl">${useTotal?`Meilleur plein estimé · ${esc(car.model||'votre véhicule')}`:`Meilleur prix · ${esc(f.l)}`}</div>
+      <div class="es-compare-row">
+        <div class="es-compare-item">
+          <div class="es-compare-flag">🇫🇷 France</div>
+          <div class="es-compare-val fr">${vFr.toFixed(decimals)}</div>
+          <div class="es-compare-sub">${useTotal?`${bestFr.prix.toFixed(3)} €/L`:unit}</div>
+        </div>
+        <div class="es-compare-sep">vs</div>
+        <div class="es-compare-item">
+          <div class="es-compare-flag">🇪🇸 Espagne</div>
+          <div class="es-compare-val es">${vEs.toFixed(decimals)}</div>
+          <div class="es-compare-sub">${useTotal?`${bestEs.prix.toFixed(3)} €/L`:unit}</div>
+        </div>
+      </div>
+      <div class="es-savings ${win?'win':'lose'}">
+        ${win
+          ? `✅ Économie de ${Math.abs(diff).toFixed(decimals)} ${unit} en allant en Espagne`
+          : `❌ ${Math.abs(diff).toFixed(decimals)} ${unit} plus cher en Espagne`}
+      </div>
+    </div>`;
+  }
+
+  // Cartes stations
+  html+=`<div class="es-list">`;
+  nearBorder.forEach((s,i)=>{
+    const top=i===0;
+    const name=s.name.replace(/\S+/g,w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase());
+    const addr=[s.addr,s.ville].filter(Boolean).join(', ');
+    const maps=`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`;
+    const plein=hasCar&&s.prixPlein!==null
+      ? `<div class="es-plein"><span class="es-plein-lbl">Plein estimé</span>`+
+        `<div><span class="es-plein-amt">${s.prixPlein.toFixed(2)}</span><span class="plein-eur"> €</span></div></div>`
+      : '';
+    html+=`<div class="es-card${top?' es-top':''}">
+      <div class="es-card-main">
+        <div class="es-rk">${i+1}</div>
+        <div class="es-card-body">
+          <div class="es-card-name">${esc(name)}</div>
+          <div class="es-card-addr">${esc(addr)}</div>
+        </div>
+        <div class="es-card-price">
+          <div class="es-p-main">${s.prix.toFixed(3)}</div>
+          <div class="es-p-unit">€ / litre</div>
+        </div>
+      </div>
+      <div class="es-card-foot">
+        <span class="tag">📍 ${s.distUser.toFixed(1)} km de vous</span>
+        <span class="tag">🏁 ${s.distBorder.toFixed(1)} km de la frontière</span>
+      </div>
+      ${plein}
+      <div class="nav-row"><a class="nav-btn" href="${maps}" target="_blank" rel="noopener">🗺 Itinéraire</a></div>
+    </div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('spainContent').innerHTML=html;
+}
+
+function openSpainSheet(){
+  document.getElementById('spainOvl').classList.add('on');
+  document.getElementById('spainSheet').classList.add('on');
+  document.getElementById('scr').style.overflow='hidden';
+}
+function closeSpainSheet(){
+  document.getElementById('spainOvl').classList.remove('on');
+  document.getElementById('spainSheet').classList.remove('on');
+  document.getElementById('scr').style.overflow='';
+}
+
 window.search=search; window.setSort=setSort;
 window.openSheet=openSheet; window.closeSheet=closeSheet;
 window.saveProfile=saveProfile; window.resetProfile=resetProfile;
+window.searchSpain=searchSpain; window.closeSpainSheet=closeSpainSheet;
 </script>
 </body>
 </html>
