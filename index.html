@@ -621,7 +621,7 @@ input[type=range]::-webkit-slider-thumb {
 }
 .es-compare-val.fr { color: var(--fuel); }
 .es-compare-val.es { color: #e52b30; }
-.es-compare-sub { font-size: .65rem; color: var(--ink3); margin-top: 2px; }
+.es-compare-sub { font-size: .62rem; color: var(--ink3); margin-top: 4px; line-height: 1.5; }
 .es-compare-sep { font-size: 1rem; color: var(--ink3); }
 .es-savings {
   margin-top: 10px; padding-top: 10px;
@@ -692,6 +692,10 @@ input[type=range]::-webkit-slider-thumb {
   display: flex; align-items: center; gap: 5px;
 }
 .es-plein-lbl::before { content: '⛽'; font-size: .75rem; }
+.es-plein-breakdown {
+  font-size: .62rem; color: var(--ink3);
+  margin-top: 2px; font-family: var(--mono);
+}
 .es-plein-amt {
   font-family: var(--mono);
   font-size: 1.2rem; font-weight: 600;
@@ -1119,7 +1123,6 @@ function esc(s){
 /* ── COMPARAISON ESPAGNE ──────────────── */
 const SPAIN_BORDERS = [
   { name:'Hendaye / Irun',  lat:43.358, lon:-1.787, ccaa:'16', prov:'20' }, // Guipúzcoa
-  { name:'Dancharinea',     lat:43.266, lon:-1.557, ccaa:'15', prov:'31' }, // Navarre
   { name:'Col du Somport',  lat:42.795, lon:-0.530, ccaa:'02', prov:'22' }, // Huesca
   { name:'Puigcerdà',       lat:42.430, lon: 1.928, ccaa:'09', prov:'25' }, // Lleida
   { name:'La Jonquera',     lat:42.462, lon: 2.851, ccaa:'09', prov:'17' }, // Girona
@@ -1129,9 +1132,22 @@ const ES_FUEL = {
   sp95:  'Precio Gasolina 95 E5',
   sp98:  'Precio Gasolina 98 E5',
   e10:   'Precio Gasolina 95 E10',
-  e85:   'Precio Bioetanol',
-  gplc:  'Precio GLP',
+  e85:   'Precio Gasolina 95 E85',
+  gplc:  'Precio Gases licuados del petróleo',
 };
+S.esCache=null; S.esCacheTime=0;
+
+async function fetchSpainStations(){
+  const TTL=5*60*1000;
+  if(S.esCache && Date.now()-S.esCacheTime<TTL) return S.esCache;
+  const url='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/';
+  const res=await fetch(url,{headers:{Accept:'application/json'}});
+  if(!res.ok) throw new Error(`API Espagne : ${res.status}`);
+  const json=await res.json();
+  S.esCache=json.ListaEESSPrecio||[];
+  S.esCacheTime=Date.now();
+  return S.esCache;
+}
 
 async function searchSpain(){
   if(S.lat===null) return;
@@ -1147,13 +1163,15 @@ async function searchSpain(){
   openSpainSheet();
 
   try{
-    const url=
-      'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/'+
-      `EstacionesTerrestresFiltradas/${border.ccaa}/${border.prov}/0/0`;
-    const res=await fetch(url,{headers:{Accept:'application/json'}});
-    if(!res.ok) throw new Error(`API Espagne : ${res.status}`);
-    const json=await res.json();
-    renderSpain(border, json.ListaEESSPrecio||[]);
+    const all=await fetchSpainStations();
+    // Filtre côté client : stations dans 50 km du passage frontière
+    const near=all.filter(r=>{
+      const lat=parseFloat((r['Latitud']||'').replace(',','.'));
+      const lon=parseFloat((r['Longitud (WGS84)']||'').replace(',','.'));
+      if(!lat||!lon||isNaN(lat)||isNaN(lon)) return false;
+      return hav(border.lat,border.lon,lat,lon)<=50;
+    });
+    renderSpain(border, near);
   }catch(e){
     cont.innerHTML=`<div class="void" style="padding:48px 20px"><span class="e">⚠️</span><h3>Erreur</h3><p>${esc(e.message)}</p></div>`;
   }finally{
@@ -1181,18 +1199,17 @@ function renderSpain(border, rawList){
     if(!lat||!lon||isNaN(lat)||isNaN(lon)) return null;
     const distUser=hav(S.lat,S.lon,lat,lon);
     const distBorder=hav(border.lat,border.lon,lat,lon);
-    const prixPlein=hasCar
-      ? car.tank*prix+(2*distUser/100)*car.conso*prix
-      : null;
+    const pleinOnly=hasCar ? car.tank*prix : null;
+    const travelCost=hasCar ? (2*distUser/100)*car.conso*prix : null;
+    const prixPlein=hasCar ? pleinOnly+travelCost : null;
     return{
       name:(r['Rótulo']||'Station').trim(),
       addr:r['Dirección']||'', ville:r['Municipio']||'',
-      prix, distUser, distBorder, prixPlein, lat, lon,
+      prix, distUser, distBorder, pleinOnly, travelCost, prixPlein, lat, lon,
     };
   }).filter(Boolean);
 
   const nearBorder=stations
-    .filter(s=>s.distBorder<=40)
     .sort((a,b)=>hasCar&&a.prixPlein!==null&&b.prixPlein!==null
       ? a.prixPlein-b.prixPlein : a.prix-b.prix)
     .slice(0,6);
@@ -1204,9 +1221,10 @@ function renderSpain(border, rawList){
     if(r.geom){lat=r.geom.lat;lon=r.geom.lon;}
     else if(r.latitude){lat=+r.latitude;lon=+r.longitude;}
     const dist=(lat!==null)?hav(S.lat,S.lon,+lat,+lon):null;
-    const prixPlein=hasCar&&dist!==null
-      ? car.tank*prix+(2*dist/100)*car.conso*prix : null;
-    return{prix,dist,prixPlein};
+    const pleinOnly=hasCar&&dist!==null ? car.tank*prix : null;
+    const travelCost=hasCar&&dist!==null ? (2*dist/100)*car.conso*prix : null;
+    const prixPlein=hasCar&&dist!==null ? pleinOnly+travelCost : null;
+    return{prix,dist,pleinOnly,travelCost,prixPlein};
   }).filter(Boolean);
 
   const bestFr=frRaw.length
@@ -1232,27 +1250,32 @@ function renderSpain(border, rawList){
     const vFr=useTotal?bestFr.prixPlein:bestFr.prix;
     const vEs=useTotal?bestEs.prixPlein:bestEs.prix;
     const diff=vFr-vEs, win=diff>0;
-    const unit=useTotal?'€ plein':'€/L';
     const decimals=useTotal?2:3;
+    const frBreakdown=useTotal
+      ? `${bestFr.pleinOnly.toFixed(2)} € carburant + ${bestFr.travelCost.toFixed(2)} € trajet (${(2*(bestFr.dist||0)).toFixed(0)} km A/R)`
+      : `${bestFr.prix.toFixed(3)} €/L`;
+    const esBreakdown=useTotal
+      ? `${bestEs.pleinOnly.toFixed(2)} € carburant + ${bestEs.travelCost.toFixed(2)} € trajet (${(2*bestEs.distUser).toFixed(0)} km A/R)`
+      : `${bestEs.prix.toFixed(3)} €/L`;
     html+=`<div class="es-compare">
-      <div class="es-compare-ttl">${useTotal?`Meilleur plein estimé · ${esc(car.model||'votre véhicule')}`:`Meilleur prix · ${esc(f.l)}`}</div>
+      <div class="es-compare-ttl">${useTotal?`Plein complet + trajet A/R · ${esc(car.model||'votre véhicule')}`:`Meilleur prix · ${esc(f.l)}`}</div>
       <div class="es-compare-row">
         <div class="es-compare-item">
           <div class="es-compare-flag">🇫🇷 France</div>
-          <div class="es-compare-val fr">${vFr.toFixed(decimals)}</div>
-          <div class="es-compare-sub">${useTotal?`${bestFr.prix.toFixed(3)} €/L`:unit}</div>
+          <div class="es-compare-val fr">${vFr.toFixed(decimals)} €</div>
+          <div class="es-compare-sub">${frBreakdown}</div>
         </div>
         <div class="es-compare-sep">vs</div>
         <div class="es-compare-item">
           <div class="es-compare-flag">🇪🇸 Espagne</div>
-          <div class="es-compare-val es">${vEs.toFixed(decimals)}</div>
-          <div class="es-compare-sub">${useTotal?`${bestEs.prix.toFixed(3)} €/L`:unit}</div>
+          <div class="es-compare-val es">${vEs.toFixed(decimals)} €</div>
+          <div class="es-compare-sub">${esBreakdown}</div>
         </div>
       </div>
       <div class="es-savings ${win?'win':'lose'}">
         ${win
-          ? `✅ Économie de ${Math.abs(diff).toFixed(decimals)} ${unit} en allant en Espagne`
-          : `❌ ${Math.abs(diff).toFixed(decimals)} ${unit} plus cher en Espagne`}
+          ? `✅ Économie nette de ${Math.abs(diff).toFixed(2)} € trajet inclus`
+          : `❌ ${Math.abs(diff).toFixed(2)} € de plus trajet inclus`}
       </div>
     </div>`;
   }
@@ -1265,8 +1288,13 @@ function renderSpain(border, rawList){
     const addr=[s.addr,s.ville].filter(Boolean).join(', ');
     const maps=`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`;
     const plein=hasCar&&s.prixPlein!==null
-      ? `<div class="es-plein"><span class="es-plein-lbl">Plein estimé</span>`+
-        `<div><span class="es-plein-amt">${s.prixPlein.toFixed(2)}</span><span class="plein-eur"> €</span></div></div>`
+      ? `<div class="es-plein">
+          <div>
+            <span class="es-plein-lbl">Plein + trajet A/R</span>
+            <div class="es-plein-breakdown">${s.pleinOnly.toFixed(2)} € carburant + ${s.travelCost.toFixed(2)} € trajet (${(2*s.distUser).toFixed(0)} km)</div>
+          </div>
+          <div><span class="es-plein-amt">${s.prixPlein.toFixed(2)}</span><span class="plein-eur"> €</span></div>
+        </div>`
       : '';
     html+=`<div class="es-card${top?' es-top':''}">
       <div class="es-card-main">
