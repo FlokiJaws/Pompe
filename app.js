@@ -106,6 +106,19 @@ async function fetchJson(url, label, timeout=30000){
   return res.json();
 }
 
+// Requête doublée : sans réponse après `after` ms, on relance la même requête
+// (paramètre _r différent, sinon le navigateur attend la première) et on garde
+// la première réponse. Utile pour l'API des communes, dont ~1 requête sur 3
+// met ~10 s au lieu de 0,2 s.
+function hedgedJson(url, label, after=1200){
+  let timer;
+  const second = new Promise(r=>{ timer=setTimeout(r,after); })
+    .then(()=>fetchJson(url+'&_r=2', label, 15000));
+  const first = fetchJson(url, label, 15000)
+    .then(v=>{ clearTimeout(timer); return v; }); // en cas d'échec, la 2e part quand même
+  return Promise.any([first, second]);
+}
+
 // Distance par la route si connue, sinon à vol d'oiseau
 function distTo(lat,lon){
   const road = S.road[ptKey(lat,lon)];
@@ -531,7 +544,7 @@ function findPlaces(q){
   const show=()=>{ if(seq===placeSeq) renderPlaces(found); };
   const enc=encodeURIComponent(q);
   const looksLikeAddress=/\d|\s/.test(q); // « bord » seul ramènerait des rues nommées « Bord »
-  const load=(key,url,map)=>fetchJson(url,key,15000)
+  const load=(key,url,map)=>hedgedJson(url,key)
     .then(r=>{ found[key]=map(r); })
     .catch(()=>{ found[key]=[]; })
     .finally(show);
