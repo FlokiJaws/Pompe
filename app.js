@@ -9,7 +9,19 @@ const FUELS = {
   e85:   { p:'e85_prix',    m:'e85_maj',    r:'e85_rupture_type',    l:'E85',    es:'Precio Gasolina 95 E85' },
   gplc:  { p:'gplc_prix',   m:'gplc_maj',   r:'gplc_rupture_type',   l:'GPLc',   es:'Precio Gases licuados del petróleo' },
 };
-const K = { f:'pm_fuel', r:'pm_radius', mo:'pm_model', tk:'pm_tank', co:'pm_conso', lv:'pm_level' };
+const K = { f:'pm_fuel', r:'pm_radius', mo:'pm_model', tk:'pm_tank', co:'pm_conso', lv:'pm_level', nav:'pm_nav' };
+
+// Applications d'itinéraire. « only » : proposée seulement sur cette plateforme
+const UA = navigator.userAgent;
+const IS_IOS = /iPad|iPhone|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints>1);
+const IS_ANDROID = /Android/.test(UA);
+const NAV_APPS = {
+  google:{ l:'Google Maps', url:(la,lo)=>`https://www.google.com/maps/dir/?api=1&destination=${la},${lo}&travelmode=driving` },
+  waze:  { l:'Waze',        url:(la,lo)=>`https://waze.com/ul?ll=${la},${lo}&navigate=yes` },
+  apple: { l:'Plans',       url:(la,lo)=>`https://maps.apple.com/?daddr=${la},${lo}&dirflg=d`, only:IS_IOS||/Macintosh/.test(UA) },
+  geo:   { l:'Autre app',   url:(la,lo)=>`geo:${la},${lo}?q=${la},${lo}`, only:IS_ANDROID }, // sélecteur Android
+};
+const NAV_LIST = Object.keys(NAV_APPS).filter(k=>NAV_APPS[k].only!==false);
 
 const API = {
   fr:    'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records',
@@ -48,6 +60,8 @@ const S = {
   esCache: {}, // { codeProvince -> { time, list } }
   animate: false,
   wantPlein: false, // tri « Plein total » demandé avant d'avoir un profil
+  nav: NAV_LIST.includes(localStorage.getItem(K.nav)) ? localStorage.getItem(K.nav) : 'ask',
+  routing: '',      // '' | 'pending' | 'failed' : état du calcul des distances
   car: {
     model: localStorage.getItem(K.mo) || '',
     tank:  +( localStorage.getItem(K.tk) ) || 0,
@@ -76,26 +90,25 @@ const ptKey = (lat,lon) => `${(+lat).toFixed(5)},${(+lon).toFixed(5)}`;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const hasCar = () => S.car.tank>0 && S.car.conso>0;
 
-async function fetchJson(url, label){
-  const res = await fetch(url,{headers:{Accept:'application/json'}});
+async function fetchJson(url, label, timeout=30000){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), timeout);
+  const res = await fetch(url,{headers:{Accept:'application/json'}, signal:ctrl.signal})
+    .finally(()=>clearTimeout(timer));
   if(!res.ok) throw new Error(`${label} : erreur ${res.status}`);
   return res.json();
-}
-
-function mapsUrl(lat,lon){
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
 }
 
 // Distance par la route si connue, sinon à vol d'oiseau
 function distTo(lat,lon){
   const road = S.road[ptKey(lat,lon)];
-  return road!=null
-    ? { km:road, road:true }
+  return road
+    ? { km:road.km, min:road.min, road:true }
     : { km:hav(S.lat,S.lon,lat,lon), road:false };
 }
 function distTag(d, suffix=''){
   return d.road
-    ? `<span class="tag">📍 ${fmt(d.km,1)} km${suffix}</span>`
+    ? `<span class="tag" title="Par la route, durée estimée sans trafic">📍 ${fmt(d.km,1)} km · ${Math.max(1,Math.round(d.min))} min${suffix}</span>`
     : `<span class="tag" title="Distance à vol d'oiseau">📍 ~${fmt(d.km,1)} km${suffix}</span>`;
 }
 
@@ -146,7 +159,8 @@ async function enrichNames(ids){
 let osrmNext = 0; // instant au plus tôt de la prochaine requête
 
 // Remplit S.road lot par lot ; onBatch() est appelé après chaque lot reçu.
-// En cas d'échec on s'arrête : les stations restantes gardent la distance à vol d'oiseau.
+// Renvoie true si tout a été calculé. En cas d'échec, les stations restantes
+// gardent la distance à vol d'oiseau.
 async function routeTo(points, seq, onBatch){
   // Les plus proches d'abord : le 1er lot (le seul rapide, le serveur ralentit
   // les requêtes rapprochées) couvre les stations les plus utiles
@@ -154,24 +168,31 @@ async function routeTo(points, seq, onBatch){
     .filter(p=>!(ptKey(p.lat,p.lon) in S.road))
     .map(p=>[ptKey(p.lat,p.lon),p])).values()]
     .sort((a,b)=>hav(S.lat,S.lon,a.lat,a.lon)-hav(S.lat,S.lon,b.lat,b.lon));
-  const origin = ptKey(S.lat,S.lon).split(',').reverse().join(',');
+  const lonLat = p => ptKey(p.lat,p.lon).split(',').reverse().join(',');
+  const origin = lonLat({lat:S.lat,lon:S.lon});
   for(let i=0;i<todo.length;i+=OSRM_BATCH){
     const batch = todo.slice(i,i+OSRM_BATCH);
-    const start = Math.max(Date.now(), osrmNext);
-    osrmNext = start+OSRM_GAP;
-    await sleep(start-Date.now());
-    if(seq!==searchSeq) return;
-    try {
-      const coords = [origin, ...batch.map(p=>ptKey(p.lat,p.lon).split(',').reverse().join(','))].join(';');
-      const json = await fetchJson(`${API.osrm}${coords}?sources=0&annotations=distance&skip_waypoints=true`,'OSRM');
-      if(json.code!=='Ok') return;
-      if(seq!==searchSeq) return;
-      json.distances[0].slice(1).forEach((m,j)=>{
-        if(m!=null) S.road[ptKey(batch[j].lat,batch[j].lon)] = m/1000;
-      });
-      onBatch();
-    } catch(_){ return; }
+    const url = `${API.osrm}${[origin,...batch.map(lonLat)].join(';')}`+
+      '?sources=0&annotations=distance,duration&skip_waypoints=true';
+    let json = null;
+    for(let attempt=0; attempt<2 && !json; attempt++){ // 1 nouvel essai si échec
+      const start = Math.max(Date.now(), osrmNext);
+      osrmNext = start+OSRM_GAP*(attempt+1);
+      await sleep(start-Date.now());
+      if(seq!==searchSeq) return false;
+      try {
+        const r = await fetchJson(url,'OSRM');
+        if(r.code==='Ok') json = r;
+      } catch(_){}
+    }
+    if(!json || seq!==searchSeq) return false;
+    json.distances[0].slice(1).forEach((m,j)=>{
+      const sec = json.durations[0][j+1];
+      if(m!=null && sec!=null) S.road[ptKey(batch[j].lat,batch[j].lon)] = { km:m/1000, min:sec/60 };
+    });
+    onBatch();
   }
+  return true;
 }
 
 /* ── SEARCH ───────────────────────────── */
@@ -198,7 +219,7 @@ async function search(){
     // Compléments chargés en arrière-plan, la liste se met à jour à l'arrivée
     const rerender = ()=>{ if(seq===searchSeq) render(); };
     enrichNames(S.raw.map(r=>String(r.id||'')).filter(Boolean)).then(rerender);
-    routeTo(S.raw.filter(r=>r.geom).map(r=>({lat:r.geom.lat,lon:r.geom.lon})), seq, rerender);
+    routeFrance(seq);
   } catch(e){ if(seq===searchSeq) showErr(e); }
   finally {
     if(seq===searchSeq){
@@ -206,6 +227,23 @@ async function search(){
       btn.textContent='⛽ Actualiser';
     }
   }
+}
+
+function routeFrance(seq=searchSeq){
+  setRouting('pending');
+  routeTo(S.raw.filter(r=>r.geom).map(r=>({lat:r.geom.lat,lon:r.geom.lon})), seq,
+    ()=>{ if(seq===searchSeq) render(); })
+    .then(ok=>{ if(seq===searchSeq) setRouting(ok?'':'failed'); });
+}
+function setRouting(state){
+  S.routing=state;
+  const n=$('routeNote');
+  n.className=state?'on '+state:'';
+  n.innerHTML = state==='pending'
+    ? 'Calcul des distances par la route…'
+    : state==='failed'
+      ? 'Distances à vol d’oiseau (~) : calcul par la route indisponible. <button type="button" id="routeRetry">Réessayer</button>'
+      : '';
 }
 
 /* ── STATIONS FRANCE ──────────────────── */
@@ -318,7 +356,7 @@ function card(s,i,mn){
       </div>
     </div>
     ${plein}
-    <div class="nav-row"><a class="nav-btn" href="${mapsUrl(s.lat,s.lon)}" target="_blank" rel="noopener">🗺 Itinéraire</a></div>
+    ${navButton(s.lat,s.lon,s.name)}
   </div>`;
 }
 
@@ -401,9 +439,10 @@ function updateCarUI(){
   setLevel(c.level);
 }
 
-/* ── PANNEAUX (véhicule, Espagne) ─────── */
-const SHEETS = { car:['carSheet','carOvl'], spain:['spainSheet','spainOvl'] };
-let openName = null;
+/* ── PANNEAUX (véhicule, Espagne, itinéraire) ── */
+const SHEETS = { car:['carSheet','carOvl'], spain:['spainSheet','spainOvl'], nav:['navSheet','navOvl'] };
+const opened = []; // pile : le choix d'itinéraire peut s'ouvrir par-dessus l'Espagne
+const isOpen = name => opened.includes(name);
 
 function openSheet(name){
   if(name==='car') fillCarForm();
@@ -411,15 +450,15 @@ function openSheet(name){
   $(ov).classList.add('on'); $(sh).classList.add('on');
   $(sh).scrollTop=0;
   $('scr').style.overflow='hidden';
-  openName=name;
+  if(!isOpen(name)) opened.push(name);
 }
-function closeSheet(name=openName){
-  if(!name) return;
+function closeSheet(name=opened[opened.length-1]){
+  if(!name||!isOpen(name)) return;
   const [sh,ov]=SHEETS[name];
   $(ov).classList.remove('on'); $(sh).classList.remove('on');
-  $('scr').style.overflow='';
+  opened.splice(opened.indexOf(name),1);
+  if(!opened.length) $('scr').style.overflow='';
   if(name==='car') S.wantPlein=false;
-  if(openName===name) openName=null;
 }
 
 // Glisser vers le bas pour fermer (quand le panneau est scrollé tout en haut)
@@ -446,15 +485,45 @@ function swipeToClose(name){
   });
 }
 
+/* ── ITINÉRAIRE ──────────────────────── */
+function navButton(lat,lon,name){
+  const app=NAV_APPS[S.nav];
+  if(!app) return `<div class="nav-row"><button type="button" class="nav-btn" data-nav="${lat},${lon}" data-name="${esc(name)}">🗺 Itinéraire</button></div>`;
+  // geo: est intercepté par Android, pas besoin de nouvel onglet
+  const tgt = S.nav==='geo' ? '' : ' target="_blank" rel="noopener"';
+  const lbl = S.nav==='geo' ? '' : ` · ${app.l}`;
+  return `<div class="nav-row"><a class="nav-btn" href="${esc(app.url(lat,lon))}"${tgt}>🗺 Itinéraire${lbl}</a></div>`;
+}
+function openNav(lat,lon,name){
+  $('navSub').textContent=name||'';
+  $('navRemember').checked=false;
+  $('navList').innerHTML=NAV_LIST.map(k=>{
+    const tgt = k==='geo' ? '' : ' target="_blank" rel="noopener"';
+    return `<a class="nav-app" data-app="${k}" href="${esc(NAV_APPS[k].url(lat,lon))}"${tgt}>${NAV_APPS[k].l}</a>`;
+  }).join('');
+  openSheet('nav');
+}
+function setNav(v){
+  S.nav=v;
+  if(v==='ask') localStorage.removeItem(K.nav); else localStorage.setItem(K.nav,v);
+  document.querySelectorAll('[data-set-nav]').forEach(b=>{
+    b.classList.toggle('on',b.dataset.setNav===v);
+    b.setAttribute('aria-pressed',b.dataset.setNav===v);
+  });
+  if(S.raw.length) render();
+  if(isOpen('spain')&&S.lastSpain) renderSpain(...S.lastSpain);
+}
+
 /* ── HELPERS ──────────────────────────── */
 function geo(){
   return new Promise((ok,fail)=>{
     if(!navigator.geolocation) return fail(new Error('Géolocalisation non disponible sur cet appareil.'));
     navigator.geolocation.getCurrentPosition(ok,fail,
-      {enableHighAccuracy:true,timeout:14000,maximumAge:90000});
+      {enableHighAccuracy:true,timeout:14000,maximumAge:15000});
   });
 }
 function skels(){
+  setRouting('');
   $('sumBox').classList.remove('on');
   $('btnSpain').hidden=true;
   $('list').innerHTML=Array(6).fill('<div class="skel"></div>').join('');
@@ -465,6 +534,7 @@ function showErr(e){
   else if(e?.code===2)m='Position indisponible. Vérifiez que la localisation est activée.';
   else if(e?.code===3)m='Délai de localisation dépassé. Réessayez.';
   else if(e instanceof TypeError)m='Connexion impossible. Vérifiez votre réseau.';
+  setRouting('');
   $('sumBox').classList.remove('on');
   $('list').innerHTML=
     `<div class="void"><span class="e">⚠️</span><h3>Erreur</h3><p>${esc(m)}</p></div>`;
@@ -523,7 +593,7 @@ async function searchSpain(){
     // Affichage immédiat (vol d'oiseau), puis mise à jour avec les distances par la route
     renderSpain(border, stations);
     routeTo(stations, seq, ()=>{
-      if(openName==='spain'&&seq===searchSeq) renderSpain(border, stations);
+      if(isOpen('spain')&&seq===searchSeq) renderSpain(border, stations);
     });
   }catch(e){
     cont.innerHTML=`<div class="void" style="padding:40px 20px"><span class="e">⚠️</span><h3>Erreur</h3><p>${esc(e.message)}</p></div>`;
@@ -533,6 +603,7 @@ async function searchSpain(){
 }
 
 function renderSpain(border, list){
+  S.lastSpain=[border, list]; // pour réafficher si le réglage d'itinéraire change
   const f=FUELS[S.fuel], car=S.car;
   const cont=$('spainContent');
 
@@ -613,7 +684,7 @@ function renderSpain(border, list){
         <span class="tag" title="Distance à vol d'oiseau">🏁 ~${fmt(hav(border.lat,border.lon,s.lat,s.lon),1)} km de la frontière</span>
       </div>
       ${plein}
-      <div class="nav-row"><a class="nav-btn" href="${mapsUrl(s.lat,s.lon)}" target="_blank" rel="noopener">🗺 Itinéraire</a></div>
+      ${navButton(s.lat,s.lon,s.name)}
     </div>`;
   });
   html+=`</div>`;
@@ -647,9 +718,30 @@ function renderSpain(border, list){
   $('resetBtn').addEventListener('click',resetProfile);
   $('carOvl').addEventListener('click',()=>closeSheet('car'));
   $('spainOvl').addEventListener('click',()=>closeSheet('spain'));
-  document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeSheet()));
+  document.querySelectorAll('[data-close]').forEach(b=>
+    b.addEventListener('click',()=>closeSheet(b.closest('.sheet').dataset.name)));
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
-  swipeToClose('car'); swipeToClose('spain');
+  $('navOvl').addEventListener('click',()=>closeSheet('nav'));
+  swipeToClose('car'); swipeToClose('spain'); swipeToClose('nav');
+
+  // Boutons « Itinéraire » (générés dans les listes) et réessai du calcul routier
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-nav]');
+    if(b){ const [la,lo]=b.dataset.nav.split(','); openNav(la,lo,b.dataset.name); }
+    if(e.target.id==='routeRetry') routeFrance();
+  });
+  $('navList').addEventListener('click',e=>{
+    const a=e.target.closest('a[data-app]');
+    if(!a) return;
+    if($('navRemember').checked) setNav(a.dataset.app);
+    closeSheet('nav');
+  });
+  $('navSet').innerHTML=['ask',...NAV_LIST].map(k=>
+    `<button type="button" class="seg-btn" data-set-nav="${k}">${k==='ask'?'Demander':NAV_APPS[k].l}</button>`).join('');
+  $('navSet').addEventListener('click',e=>{
+    const b=e.target.closest('[data-set-nav]'); if(b) setNav(b.dataset.setNav);
+  });
+  setNav(S.nav);
 
   // Retour sur l'appli (téléphone) après un moment : prix rafraîchis
   document.addEventListener('visibilitychange',()=>{

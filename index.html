@@ -16,8 +16,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-<script src="app.js" defer></script>
+<!-- ?v= : à incrémenter à chaque mise en ligne pour contourner le cache des téléphones -->
+<link rel="stylesheet" href="style.css?v=2">
+<script src="app.js?v=2" defer></script>
 </head>
 <body>
 <div id="app">
@@ -26,7 +27,7 @@
     <h1 class="logo">
       <span class="logo-pompe">Pompe</span><span class="logo-moi">Moi</span>
     </h1>
-    <button class="avatar-btn" id="carBtn" aria-label="Mon véhicule">
+    <button class="avatar-btn" id="carBtn" aria-label="Réglages">
       🚗<span class="dot-badge" id="dbadge"></span>
     </button>
   </header>
@@ -75,6 +76,7 @@
       <span class="timestamp" id="stTime"></span>
     </div>
 
+    <div id="routeNote" aria-live="polite"></div>
     <div id="sumBox"></div>
     <div id="list" aria-live="polite"></div>
 
@@ -96,7 +98,7 @@
 </div>
 
 <div class="ovl" id="spainOvl"></div>
-<div class="sheet" id="spainSheet" role="dialog" aria-modal="true" aria-labelledby="esTitle">
+<div class="sheet" id="spainSheet" data-name="spain" role="dialog" aria-modal="true" aria-labelledby="esTitle">
   <div class="handle"></div>
   <div class="es-header">
     <div class="sheet-head">
@@ -109,7 +111,7 @@
 </div>
 
 <div class="ovl" id="carOvl"></div>
-<div class="sheet" id="carSheet" role="dialog" aria-modal="true" aria-labelledby="carTitle">
+<div class="sheet" id="carSheet" data-name="car" role="dialog" aria-modal="true" aria-labelledby="carTitle">
   <div class="handle"></div>
   <div class="sheet-head">
     <div>
@@ -143,6 +145,25 @@
     <button class="save-btn" type="submit">Enregistrer</button>
   </form>
   <button class="reset-lnk" id="resetBtn" type="button">Effacer le profil</button>
+
+  <div class="sheet-sep"></div>
+  <div class="sheet-ttl">Itinéraire</div>
+  <div class="sheet-sub">Application ouverte par le bouton « Itinéraire ».</div>
+  <div class="seg nav-set" id="navSet" role="group" aria-label="Application d'itinéraire"></div>
+</div>
+
+<div class="ovl" id="navOvl"></div>
+<div class="sheet" id="navSheet" data-name="nav" role="dialog" aria-modal="true" aria-labelledby="navTitle">
+  <div class="handle"></div>
+  <div class="sheet-head">
+    <div>
+      <div class="sheet-ttl" id="navTitle">Ouvrir l'itinéraire avec</div>
+      <div class="sheet-sub" id="navSub"></div>
+    </div>
+    <button class="sheet-x" data-close aria-label="Fermer">✕</button>
+  </div>
+  <div class="nav-list" id="navList"></div>
+  <label class="nav-remember"><input type="checkbox" id="navRemember"> Toujours utiliser cette application</label>
 </div>
 
 </body>
