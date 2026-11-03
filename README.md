@@ -6,7 +6,7 @@ Application web mobile qui affiche les prix des carburants autour de soi, calcul
 
 ## Fonctionnalités
 
-- Toutes les stations dans un rayon de 2 à 40 km autour de la position (géolocalisation du navigateur)
+- Toutes les stations dans un rayon de 2 à 40 km autour de sa position GPS, ou autour d'une ville ou d'une adresse recherchée (pour préparer un trajet)
 - 6 carburants : Gazole, E10, SP95, SP98, E85, GPLc
 - Tri par prix au litre, coût du plein, distance, ou du plus cher au moins cher
 - Distance **par la route** et temps de trajet estimé (sans trafic), calculés avec OSRM
@@ -25,12 +25,14 @@ Toutes publiques et sans clé d'API, appelées directement depuis le navigateur 
 | Prix France (temps réel) | [data.economie.gouv.fr — flux instantané v2](https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/) |
 | Enseignes des stations | [public.opendatasoft.com — prix des carburants J-7](https://public.opendatasoft.com/explore/dataset/prix_des_carburants_j_7/) |
 | Prix Espagne | API REST du Ministerio para la Transición Ecológica (`sedeaplicaciones.minetur.gob.es`), filtrée par province |
+| Recherche de lieu | [geo.api.gouv.fr](https://geo.api.gouv.fr/decoupage-administratif/communes) (communes) et [Géoplateforme IGN](https://geoservices.ign.fr/documentation/services/services-geoplateforme/geocodage) (adresses) |
 | Distances routières | [OSRM](https://project-osrm.org/) sur le serveur public de FOSSGIS (`routing.openstreetmap.de`), données © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright) |
 
 ### Contraintes des API, et comment elles sont gérées
 
 - **Opendatasoft** limite chaque requête à 100 résultats : le premier appel donne le nombre total, et les pages restantes sont récupérées en parallèle (jusqu'à ~700 stations sur 40 km autour de Paris).
 - **API espagnole** : l'endpoint national fait ~12 Mo. On interroge uniquement la province du passage frontière le plus proche (~300 Ko).
+- **Recherche de lieu** : l'API des communes trouve « Bordeaux » dès « bord », mais répond parfois en ~10 s. L'API d'adresses est rapide, mais ne gère pas bien les débuts de nom. Les deux sont interrogées en parallèle et les résultats s'affichent dès que l'une répond.
 - **Serveur OSRM public** : 1 requête par seconde au maximum. Les distances sont demandées par lots de 250 stations (limite de longueur d'URL), les plus proches en premier, avec au moins 1,1 s entre deux requêtes. La liste s'affiche tout de suite avec les distances à vol d'oiseau (marquées « ~ »), puis se met à jour. Chaque lot a un délai maximal et une seconde tentative. Si OSRM ne répond toujours pas, l'appli l'indique et propose de réessayer.
 
 ## Structure

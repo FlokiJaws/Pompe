@@ -17,8 +17,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- ?v= : à incrémenter à chaque mise en ligne pour contourner le cache des téléphones -->
-<link rel="stylesheet" href="style.css?v=2">
-<script src="app.js?v=2" defer></script>
+<link rel="stylesheet" href="style.css?v=3">
+<script src="app.js?v=3" defer></script>
 </head>
 <body>
 <div id="app">
@@ -33,6 +33,12 @@
   </header>
 
   <main id="scr">
+
+    <button class="place-btn" id="placeBtn" type="button">
+      <span class="place-ico">📍</span>
+      <span class="place-lbl"><small>Autour de</small><span id="placeLbl">Ma position</span></span>
+      <span class="place-edit">Changer</span>
+    </button>
 
     <div class="pills" id="pills" role="group" aria-label="Carburant">
       <button class="pill on" data-fuel="gazole">🛢 Gazole</button>
@@ -150,6 +156,24 @@
   <div class="sheet-ttl">Itinéraire</div>
   <div class="sheet-sub">Application ouverte par le bouton « Itinéraire ».</div>
   <div class="seg nav-set" id="navSet" role="group" aria-label="Application d'itinéraire"></div>
+</div>
+
+<div class="ovl" id="placeOvl"></div>
+<div class="sheet" id="placeSheet" data-name="place" role="dialog" aria-modal="true" aria-labelledby="placeTitle">
+  <div class="handle"></div>
+  <div class="sheet-head">
+    <div>
+      <div class="sheet-ttl" id="placeTitle">Rechercher autour de…</div>
+      <div class="sheet-sub">Une ville ou une adresse en France. Le trajet est calculé depuis ce lieu.</div>
+    </div>
+    <button class="sheet-x" data-close aria-label="Fermer">✕</button>
+  </div>
+  <form id="placeForm" role="search">
+    <input class="finput" id="placeInput" type="search" placeholder="Hendaye, Bordeaux, 12 rue…"
+      autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Ville ou adresse">
+  </form>
+  <div class="place-list" id="placeList" aria-live="polite"></div>
+  <button class="place-gps" id="placeGps" type="button">📍 Revenir à ma position GPS</button>
 </div>
 
 <div class="ovl" id="navOvl"></div>

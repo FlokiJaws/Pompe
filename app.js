@@ -28,6 +28,10 @@ const API = {
   names: 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/prix_des_carburants_j_7/records',
   es:    'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/FiltroProvincia/',
   osrm:  'https://routing.openstreetmap.de/routed-car/table/v1/driving/',
+  // Recherche de lieu : communes (gère les débuts de nom, « bord » → Bordeaux)
+  // + adresses (Géoplateforme, remplace api-adresse.data.gouv.fr dépréciée)
+  communes: 'https://geo.api.gouv.fr/communes',
+  geocode:  'https://data.geopf.fr/geocodage/search',
 };
 // Champs demandés à l'API (évite select=* qui renvoie services, horaires…)
 const FR_FIELDS = ['id','adresse','ville','geom',
@@ -62,6 +66,8 @@ const S = {
   wantPlein: false, // tri « Plein total » demandé avant d'avoir un profil
   nav: NAV_LIST.includes(localStorage.getItem(K.nav)) ? localStorage.getItem(K.nav) : 'ask',
   routing: '',      // '' | 'pending' | 'failed' : état du calcul des distances
+  place: null,      // { label, lat, lon } : lieu choisi à la place du GPS (non mémorisé)
+  placeItems: [],
   car: {
     model: localStorage.getItem(K.mo) || '',
     tank:  +( localStorage.getItem(K.tk) ) || 0,
@@ -199,12 +205,14 @@ async function routeTo(points, seq, onBatch){
 async function search(){
   const seq=++searchSeq;
   const btn=$('btn');
-  btn.disabled=true; btn.textContent='📍 Localisation…';
+  btn.disabled=true; btn.textContent=S.place?'🔄 Chargement…':'📍 Localisation…';
   skels();
   try {
-    const pos=await geo();
+    let lat, lon;
+    if(S.place){ ({lat,lon}=S.place); }
+    else { const pos=await geo(); lat=pos.coords.latitude; lon=pos.coords.longitude; }
     if(seq!==searchSeq) return;
-    S.lat=pos.coords.latitude; S.lon=pos.coords.longitude;
+    S.lat=lat; S.lon=lon;
     S.road={};
     btn.textContent='🔄 Chargement…';
     const raw=await fetchFrance(S.lat,S.lon,S.radius);
@@ -440,7 +448,7 @@ function updateCarUI(){
 }
 
 /* ── PANNEAUX (véhicule, Espagne, itinéraire) ── */
-const SHEETS = { car:['carSheet','carOvl'], spain:['spainSheet','spainOvl'], nav:['navSheet','navOvl'] };
+const SHEETS = { car:['carSheet','carOvl'], spain:['spainSheet','spainOvl'], nav:['navSheet','navOvl'], place:['placeSheet','placeOvl'] };
 const opened = []; // pile : le choix d'itinéraire peut s'ouvrir par-dessus l'Espagne
 const isOpen = name => opened.includes(name);
 
@@ -483,6 +491,67 @@ function swipeToClose(name){
     if(dy>90) closeSheet(name);
     y0=null;
   });
+}
+
+/* ── LIEU DE RECHERCHE ──────────────── */
+const fromWhere = () => S.place ? `de ${S.place.label}` : 'de vous';
+
+function updatePlaceUI(){
+  $('placeLbl').textContent = S.place ? S.place.label : 'Ma position';
+  $('placeBtn').classList.toggle('custom', !!S.place);
+}
+function openPlace(){
+  $('placeInput').value='';
+  $('placeList').innerHTML='';
+  $('placeGps').hidden=!S.place;
+  openSheet('place');
+  $('placeInput').focus({preventScroll:true}); // dans le geste : affiche le clavier mobile
+}
+function setPlace(place){
+  S.place=place;
+  updatePlaceUI();
+  closeSheet('place');
+  search();
+}
+
+let placeSeq=0, placeTimer=null;
+function onPlaceInput(){
+  clearTimeout(placeTimer);
+  const q=$('placeInput').value.trim();
+  if(q.length<3){ placeSeq++; $('placeList').innerHTML=''; return; }
+  placeTimer=setTimeout(()=>findPlaces(q),300);
+}
+// Les deux API en parallèle, résultats affichés dès qu'une répond
+function findPlaces(q){
+  const seq=++placeSeq, found={communes:null, addr:null};
+  const show=()=>{ if(seq===placeSeq) renderPlaces(found); };
+  const enc=encodeURIComponent(q);
+  const looksLikeAddress=/\d|\s/.test(q); // « bord » seul ramènerait des rues nommées « Bord »
+  renderPlaces(found);
+  fetchJson(`${API.communes}?nom=${enc}&fields=nom,codeDepartement,centre&boost=population&limit=5`,'Communes',8000)
+    .then(r=>{ found.communes=r.filter(c=>c.centre).map(c=>({
+      label:c.nom, sub:`Commune · ${c.codeDepartement}`,
+      lat:c.centre.coordinates[1], lon:c.centre.coordinates[0] })); })
+    .catch(()=>{ found.communes=[]; })
+    .finally(show);
+  fetchJson(`${API.geocode}?q=${enc}&limit=5`,'Adresses',8000)
+    .then(r=>{ found.addr=(r.features||[])
+      .filter(f=>f.properties.score>0.5 &&
+        (f.properties.type==='municipality' ? !found.communes?.length : looksLikeAddress))
+      .map(f=>({ label:f.properties.label, sub:f.properties.context||'',
+        lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0] })); })
+    .catch(()=>{ found.addr=[]; })
+    .finally(show);
+}
+function renderPlaces(found){
+  const seen=new Set();
+  S.placeItems=[...(found.communes||[]), ...(found.addr||[])]
+    .filter(p=>!seen.has(p.label)&&seen.add(p.label)).slice(0,7);
+  const pending=found.communes===null||found.addr===null;
+  $('placeList').innerHTML = S.placeItems.length
+    ? S.placeItems.map((p,i)=>`<button type="button" class="place-item" data-i="${i}">
+        <span class="place-name">${esc(p.label)}</span><span class="place-sub">${esc(p.sub)}</span></button>`).join('')
+    : `<div class="place-empty">${pending?'Recherche…':'Aucun lieu trouvé'}</div>`;
 }
 
 /* ── ITINÉRAIRE ──────────────────────── */
@@ -581,7 +650,7 @@ async function searchSpain(){
   btn.disabled=true; btn.textContent='🔄 Chargement…';
 
   const border=nearestBorder();
-  $('esSub').innerHTML=`Via <strong>${esc(border.name)}</strong> · frontière à ~${fmt(border.distUser,0)} km de vous<br>
+  $('esSub').innerHTML=`Via <strong>${esc(border.name)}</strong> · frontière à ~${fmt(border.distUser,0)} km ${esc(fromWhere())}<br>
     Stations à moins de ${ES_RADIUS} km du passage frontière`;
   const cont=$('spainContent');
   cont.innerHTML='<div class="void" style="padding:40px 20px"><p>Chargement des stations espagnoles…</p></div>';
@@ -680,7 +749,7 @@ function renderSpain(border, list){
         </div>
       </div>
       <div class="es-card-foot">
-        ${distTag(s.d,' de vous')}
+        ${distTag(s.d,' '+fromWhere())}
         <span class="tag" title="Distance à vol d'oiseau">🏁 ~${fmt(hav(border.lat,border.lon,s.lat,s.lon),1)} km de la frontière</span>
       </div>
       ${plein}
@@ -742,6 +811,20 @@ function renderSpain(border, list){
     const b=e.target.closest('[data-set-nav]'); if(b) setNav(b.dataset.setNav);
   });
   setNav(S.nav);
+
+  $('placeBtn').addEventListener('click',openPlace);
+  $('placeOvl').addEventListener('click',()=>closeSheet('place'));
+  $('placeInput').addEventListener('input',onPlaceInput);
+  $('placeForm').addEventListener('submit',e=>{ // touche Entrée : 1er résultat
+    e.preventDefault();
+    if(S.placeItems[0]) setPlace(S.placeItems[0]);
+  });
+  $('placeList').addEventListener('click',e=>{
+    const b=e.target.closest('.place-item'); if(b) setPlace(S.placeItems[+b.dataset.i]);
+  });
+  $('placeGps').addEventListener('click',()=>setPlace(null));
+  swipeToClose('place');
+  updatePlaceUI();
 
   // Retour sur l'appli (téléphone) après un moment : prix rafraîchis
   document.addEventListener('visibilitychange',()=>{
