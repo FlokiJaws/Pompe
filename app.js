@@ -32,6 +32,7 @@ const API = {
   // + adresses (Géoplateforme, remplace api-adresse.data.gouv.fr dépréciée)
   communes: 'https://geo.api.gouv.fr/communes',
   geocode:  'https://data.geopf.fr/geocodage/search',
+  completion: 'https://data.geopf.fr/geocodage/completion',
 };
 // Champs demandés à l'API (évite select=* qui renvoie services, horaires…)
 const FR_FIELDS = ['id','adresse','ville','geom',
@@ -521,36 +522,44 @@ function onPlaceInput(){
   if(q.length<3){ placeSeq++; $('placeList').innerHTML=''; return; }
   placeTimer=setTimeout(()=>findPlaces(q),300);
 }
-// Les deux API en parallèle, résultats affichés dès qu'une répond
+// Trois sources en parallèle, résultats affichés dès que l'une répond :
+// - communes : meilleurs résultats, mais répond parfois en ~10 s
+// - complétion Géoplateforme : rapide, comble l'attente (rate quelques communes)
+// - adresses : seulement si la saisie ressemble à une adresse
 function findPlaces(q){
-  const seq=++placeSeq, found={communes:null, addr:null};
+  const seq=++placeSeq, found={communes:null, completion:null, addr:null};
   const show=()=>{ if(seq===placeSeq) renderPlaces(found); };
   const enc=encodeURIComponent(q);
   const looksLikeAddress=/\d|\s/.test(q); // « bord » seul ramènerait des rues nommées « Bord »
+  const load=(key,url,map)=>fetchJson(url,key,15000)
+    .then(r=>{ found[key]=map(r); })
+    .catch(()=>{ found[key]=[]; })
+    .finally(show);
   renderPlaces(found);
-  fetchJson(`${API.communes}?nom=${enc}&fields=nom,codeDepartement,centre&boost=population&limit=5`,'Communes',8000)
-    .then(r=>{ found.communes=r.filter(c=>c.centre).map(c=>({
+  load('communes', `${API.communes}?nom=${enc}&fields=nom,codeDepartement,centre&boost=population&limit=5`,
+    r=>r.filter(c=>c.centre).map(c=>({
       label:c.nom, sub:`Commune · ${c.codeDepartement}`,
-      lat:c.centre.coordinates[1], lon:c.centre.coordinates[0] })); })
-    .catch(()=>{ found.communes=[]; })
-    .finally(show);
-  fetchJson(`${API.geocode}?q=${enc}&limit=5`,'Adresses',8000)
-    .then(r=>{ found.addr=(r.features||[])
-      .filter(f=>f.properties.score>0.5 &&
-        (f.properties.type==='municipality' ? !found.communes?.length : looksLikeAddress))
-      .map(f=>({ label:f.properties.label, sub:f.properties.context||'',
-        lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0] })); })
-    .catch(()=>{ found.addr=[]; })
-    .finally(show);
+      lat:c.centre.coordinates[1], lon:c.centre.coordinates[0] })));
+  load('completion', `${API.completion}?text=${enc}&type=PositionOfInterest&poiType=commune&maximumResponses=5`,
+    r=>(r.results||[]).map(c=>({
+      label:c.fulltext.split(',')[0].trim(), sub:`Commune · ${(c.zipcode||'').slice(0,2)}`,
+      lat:c.y, lon:c.x })));
+  if(looksLikeAddress) load('addr', `${API.geocode}?q=${enc}&limit=5`,
+    r=>(r.features||[]).filter(f=>f.properties.score>0.5).map(f=>({
+      label:f.properties.label, sub:f.properties.context||'',
+      lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0] })));
+  else found.addr=[];
 }
 function renderPlaces(found){
   const seen=new Set();
-  S.placeItems=[...(found.communes||[]), ...(found.addr||[])]
-    .filter(p=>!seen.has(p.label)&&seen.add(p.label)).slice(0,7);
-  const pending=found.communes===null||found.addr===null;
+  S.placeItems=[...(found.communes||[]), ...(found.completion||[]), ...(found.addr||[])]
+    .filter(p=>{ const k=p.label.toLowerCase(); return !seen.has(k)&&seen.add(k); })
+    .slice(0,7);
+  const pending=Object.values(found).some(v=>v===null);
   $('placeList').innerHTML = S.placeItems.length
     ? S.placeItems.map((p,i)=>`<button type="button" class="place-item" data-i="${i}">
         <span class="place-name">${esc(p.label)}</span><span class="place-sub">${esc(p.sub)}</span></button>`).join('')
+      + (pending?'<div class="place-empty">Recherche…</div>':'')
     : `<div class="place-empty">${pending?'Recherche…':'Aucun lieu trouvé'}</div>`;
 }
 
