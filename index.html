@@ -803,13 +803,17 @@ input[type=range]::-webkit-slider-thumb {
 <script>
 /* ── CONSTANTES ───────────────────────── */
 const FUELS = {
-  gazole:{ p:'gazole_prix', m:'gazole_maj', r:'gazole_rupture', l:'Gazole' },
-  e10:   { p:'e10_prix',    m:'e10_maj',    r:'e10_rupture',    l:'E10'    },
-  sp95:  { p:'sp95_prix',   m:'sp95_maj',   r:'sp95_rupture',   l:'SP95'   },
-  sp98:  { p:'sp98_prix',   m:'sp98_maj',   r:'sp98_rupture',   l:'SP98'   },
-  e85:   { p:'e85_prix',    m:'e85_maj',    r:'e85_rupture',    l:'E85'    },
-  gplc:  { p:'gplc_prix',   m:'gplc_maj',   r:'gplc_rupture',  l:'GPLc'   },
+  gazole:{ p:'gazole_prix', m:'gazole_maj', r:'gazole_rupture_type', l:'Gazole' },
+  e10:   { p:'e10_prix',    m:'e10_maj',    r:'e10_rupture_type',    l:'E10'    },
+  sp95:  { p:'sp95_prix',   m:'sp95_maj',   r:'sp95_rupture_type',   l:'SP95'   },
+  sp98:  { p:'sp98_prix',   m:'sp98_maj',   r:'sp98_rupture_type',   l:'SP98'   },
+  e85:   { p:'e85_prix',    m:'e85_maj',    r:'e85_rupture_type',    l:'E85'    },
+  gplc:  { p:'gplc_prix',   m:'gplc_maj',   r:'gplc_rupture_type',   l:'GPLc'   },
 };
+// Champs demandés à l'API (évite select=* qui renvoie services, horaires…)
+const FR_FIELDS = ['id','adresse','ville','geom',
+  ...Object.values(FUELS).flatMap(f=>[f.p,f.m,f.r])].join(',');
+const PAGE = 100; // maximum autorisé par l'API Opendatasoft
 const K = { f:'pm_fuel', r:'pm_radius', mo:'pm_model', tk:'pm_tank', co:'pm_conso' };
 
 /* ── STATE ────────────────────────────── */
@@ -825,6 +829,7 @@ const S = {
     conso: +( localStorage.getItem(K.co) ) || 0,
   }
 };
+let searchSeq = 0; // ignore les réponses d'une recherche dépassée
 
 /* ── INIT ─────────────────────────────── */
 (function(){
@@ -871,26 +876,52 @@ function hav(a,b,c,d){
 S.names = {}; // { stationId -> "Nom / Marque" }
 
 async function enrichNames(ids){
-  if(!ids.length) return;
-  try {
-    const where = ids.map(id=>`id="${id}"`).join(' OR ');
-    const url =
-      'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/'+
-      'prix_des_carburants_j_7/records'+
-      `?select=id,brand,name&where=${encodeURIComponent(where)}&limit=100`;
-    const res = await fetch(url,{headers:{Accept:'application/json'}});
-    if(!res.ok) return;
-    const json = await res.json();
-    (json.results||[]).forEach(r=>{
-      const id = String(r.id||'');
-      const label = r.brand||r.name||null;
-      if(id && label) S.names[id] = label.trim();
-    });
-  } catch(_){}
+  ids = ids.filter(id=>!(id in S.names));
+  // Lots de 100 ids (limite de l'API), requêtes en parallèle
+  const batches = [];
+  for(let i=0;i<ids.length;i+=PAGE) batches.push(ids.slice(i,i+PAGE));
+  await Promise.all(batches.map(async batch=>{
+    try {
+      const where = batch.map(id=>`id="${id}"`).join(' OR ');
+      const url =
+        'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/'+
+        'prix_des_carburants_j_7/records'+
+        `?select=id,brand,name&where=${encodeURIComponent(where)}&limit=${PAGE}`;
+      const res = await fetch(url,{headers:{Accept:'application/json'}});
+      if(!res.ok) return;
+      const json = await res.json();
+      (json.results||[]).forEach(r=>{
+        const id = String(r.id||'');
+        const label = r.brand||r.name||null;
+        if(id && label) S.names[id] = label.trim();
+      });
+    } catch(_){}
+  }));
+}
+
+/* ── API FRANCE (paginée) ─────────────── */
+async function fetchFrance(lat, lon, radius){
+  const base =
+    'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/'+
+    'prix-des-carburants-en-france-flux-instantane-v2/records'+
+    `?where=distance(geom,geom'POINT(${lon}%20${lat})',${radius}km)`+
+    `&select=${FR_FIELDS}&limit=${PAGE}&timezone=Europe%2FParis`;
+  const page = async offset=>{
+    const res=await fetch(`${base}&offset=${offset}`,{headers:{Accept:'application/json'}});
+    if(!res.ok) throw new Error(`API ${res.status}`);
+    return res.json();
+  };
+  // 1re page pour connaître total_count, puis le reste en parallèle
+  const first = await page(0);
+  const offsets = [];
+  for(let o=PAGE;o<(first.total_count||0);o+=PAGE) offsets.push(o);
+  const rest = await Promise.all(offsets.map(page));
+  return [first,...rest].flatMap(j=>j.results||[]);
 }
 
 /* ── SEARCH ───────────────────────────── */
 async function search(){
+  const seq=++searchSeq;
   const btn=document.getElementById('btn');
   btn.disabled=true; btn.textContent='📍 Localisation…';
   skels();
@@ -898,14 +929,9 @@ async function search(){
     const pos=await geo();
     S.lat=pos.coords.latitude; S.lon=pos.coords.longitude;
     btn.textContent='🔄 Chargement…';
-    const url=
-      'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/'+
-      'prix-des-carburants-en-france-flux-instantane-v2/records'+
-      `?where=distance(geom,geom'POINT(${S.lon}%20${S.lat})',${S.radius}km)`+
-      '&limit=100&timezone=Europe%2FParis&select=*';
-    const res=await fetch(url,{headers:{Accept:'application/json'}});
-    if(!res.ok) throw new Error(`API ${res.status}`);
-    S.raw=(await res.json()).results||[];
+    const raw=await fetchFrance(S.lat,S.lon,S.radius);
+    if(seq!==searchSeq) return;
+    S.raw=raw;
 
     // Enrichissement noms en parallèle (n'attend pas pour afficher)
     const ids = S.raw.map(r=>String(r.id||'')).filter(Boolean);
@@ -916,10 +942,12 @@ async function search(){
     document.getElementById('stTime').textContent=
       new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     render();
-  } catch(e){ showErr(e); }
+  } catch(e){ if(seq===searchSeq) showErr(e); }
   finally {
-    btn.disabled=false;
-    btn.innerHTML='⛽ Actualiser';
+    if(seq===searchSeq){
+      btn.disabled=false;
+      btn.innerHTML='⛽ Actualiser';
+    }
   }
 }
 
@@ -938,9 +966,12 @@ function render(){
       ? car.tank*prix + (2*dist/100)*car.conso*prix
       : null;
     let age=null, stale=false;
-    try{ const h=Math.round((Date.now()-new Date(r[f.m]))/3600000);
+    const maj=r[f.m]?new Date(r[f.m]):null; // new Date(null) donnerait 1970
+    if(maj&&!isNaN(maj)){
+      const h=Math.round((Date.now()-maj)/3600000);
       age=h<1?'< 1h':h<24?`${h}h`:`${Math.round(h/24)}j`;
-      stale=h>48; }catch{}
+      stale=h>48;
+    }
     const rupture = !!(r[f.r]);
     return{...r,_p:prix,_d:dist,_lat:lat,_lon:lon,_plein:prixPlein,_age:age,_stale:stale,_rupture:rupture};
   }).filter(Boolean);
@@ -987,7 +1018,8 @@ function render(){
   sb.innerHTML=sh;
 
   list.innerHTML=sorted.map((s,i)=>card(s,i,mn,hasCar)).join('');
-  document.getElementById('btnSpain').style.display='';
+  document.getElementById('btnSpain').style.display=
+    nearestBorder().distUser<=ES_MAX_DIST ? '' : 'none';
 }
 
 function card(s,i,mn,hasCar){
@@ -1107,7 +1139,7 @@ function skels(){
 }
 function showErr(e){
   let m=e?.message||'Erreur inconnue.';
-  if(e?.code===1)m='Géolocalisation refusée. Activez-la dans Réglages › Safari › Localisation.';
+  if(e?.code===1)m='Géolocalisation refusée. Autorisez la localisation pour ce site dans les réglages du navigateur.';
   else if(e?.code===2)m='Position indisponible. Vérifiez votre réseau.';
   else if(e?.code===3)m='Délai expiré. Réessayez.';
   document.getElementById('sumBox').classList.remove('on');
@@ -1135,18 +1167,27 @@ const ES_FUEL = {
   e85:   'Precio Gasolina 95 E85',
   gplc:  'Precio Gases licuados del petróleo',
 };
-S.esCache=null; S.esCacheTime=0;
+const ES_RADIUS   = 50;  // km autour du passage frontière
+const ES_MAX_DIST = 200; // km : au-delà, le bouton Espagne n'est pas proposé
+S.esCache={}; // { codeProvince -> { time, list } }
 
-async function fetchSpainStations(){
-  const TTL=5*60*1000;
-  if(S.esCache && Date.now()-S.esCacheTime<TTL) return S.esCache;
-  const url='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/';
+function nearestBorder(){
+  return SPAIN_BORDERS
+    .map(b=>({...b, distUser:hav(S.lat,S.lon,b.lat,b.lon)}))
+    .sort((a,b)=>a.distUser-b.distUser)[0];
+}
+
+// Endpoint par province (~300 Ko) plutôt que l'Espagne entière (~12 Mo)
+async function fetchSpainStations(prov){
+  const TTL=5*60*1000, c=S.esCache[prov];
+  if(c && Date.now()-c.time<TTL) return c.list;
+  const url='https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/FiltroProvincia/'+prov;
   const res=await fetch(url,{headers:{Accept:'application/json'}});
   if(!res.ok) throw new Error(`API Espagne : ${res.status}`);
   const json=await res.json();
-  S.esCache=json.ListaEESSPrecio||[];
-  S.esCacheTime=Date.now();
-  return S.esCache;
+  const list=json.ListaEESSPrecio||[];
+  S.esCache[prov]={time:Date.now(), list};
+  return list;
 }
 
 async function searchSpain(){
@@ -1154,22 +1195,20 @@ async function searchSpain(){
   const btn=document.getElementById('btnSpain');
   btn.disabled=true; btn.textContent='🔄 Chargement…';
 
-  const border=SPAIN_BORDERS
-    .map(b=>({...b, distUser:hav(S.lat,S.lon,b.lat,b.lon)}))
-    .sort((a,b)=>a.distUser-b.distUser)[0];
+  const border=nearestBorder();
 
   const cont=document.getElementById('spainContent');
   cont.innerHTML='<div style="padding:48px 0;text-align:center;color:var(--ink2);font-size:.85rem">Chargement…</div>';
   openSpainSheet();
 
   try{
-    const all=await fetchSpainStations();
-    // Filtre côté client : stations dans 50 km du passage frontière
+    const all=await fetchSpainStations(border.prov);
+    // Filtre côté client : stations proches du passage frontière
     const near=all.filter(r=>{
       const lat=parseFloat((r['Latitud']||'').replace(',','.'));
       const lon=parseFloat((r['Longitud (WGS84)']||'').replace(',','.'));
       if(!lat||!lon||isNaN(lat)||isNaN(lon)) return false;
-      return hav(border.lat,border.lon,lat,lon)<=50;
+      return hav(border.lat,border.lon,lat,lon)<=ES_RADIUS;
     });
     renderSpain(border, near);
   }catch(e){
@@ -1236,11 +1275,11 @@ function renderSpain(border, rawList){
   let html=`<div class="es-header">
     <div class="es-title">🇪🇸 Espagne</div>
     <div class="es-sub">Via <strong>${esc(border.name)}</strong> · frontière à ${border.distUser.toFixed(0)} km de vous<br>
-    Stations dans un rayon de 40 km du passage frontière</div>
+    Stations dans un rayon de ${ES_RADIUS} km du passage frontière</div>
   </div>`;
 
   if(!nearBorder.length){
-    html+=`<div style="padding:30px 20px;text-align:center;color:var(--ink2);font-size:.82rem">Aucune station trovée pour le ${esc(f.l)} près de ${esc(border.name)}.</div>`;
+    html+=`<div style="padding:30px 20px;text-align:center;color:var(--ink2);font-size:.82rem">Aucune station trouvée pour le ${esc(f.l)} près de ${esc(border.name)}.</div>`;
     document.getElementById('spainContent').innerHTML=html; return;
   }
 
